@@ -2,7 +2,7 @@
 
 Перед запуском:
 
-Установить graphviz (для Mac: `brew install graphviz`)
+Установить [graphviz](http://plantuml.com/graphviz-dot)
 
 ```npm install```
 
