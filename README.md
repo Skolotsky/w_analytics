@@ -3,6 +3,7 @@
 Перед запуском:
 
 ```npm install```
+
 ```npm install ts-node -g```
 
 Для запуска:
