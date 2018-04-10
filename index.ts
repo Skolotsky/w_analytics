@@ -2,6 +2,8 @@ import * as FS from "fs";
 import * as Path from "path";
 import * as TS from "typescript";
 import * as CC from "change-case";
+import * as Git from "nodegit";
+import * as PUML from "node-plantuml";
 
 const EXTEND = "extend";
 const MODULE_CHILD_DELIMETER = "~";
@@ -338,47 +340,32 @@ function getClassDefinitionString(classDefinition: IClassDefinition) {
   const attributesString = classDefinition.attributes
     .map(([name, type]) => `${name} : ${type}`)
     .join("\n");
-  return `\nclass "${classDefinition.classFullName}" {\n${attributesString}\n}`;
+  return `class "${classDefinition.classFullName}" {\n${attributesString}\n}`;
 }
 
-function main() {
-  const paths = [
-    Path.resolve(process.env.HOME, "./projects/boilerplate/addon/models"),
-    Path.resolve(process.env.HOME, "./projects/boilerplate/app/models"),
-    Path.resolve(process.env.HOME, "./projects/dashboard/app/models"),
-    Path.resolve(process.env.HOME, "./projects/partners_wheely_com/app/models"),
-    Path.resolve(process.env.HOME, "./projects/business_renovation/app/models")
-  ];
-  const gettingFileNames = new Promise(resolve => {
-    const fileNames = [];
-    let count = paths.length;
-    paths.forEach(path => {
-      parseDirectory(fileNames, path).then(() => {
-        count--;
-        if (count === 0) {
-          resolve(fileNames);
-        }
-      });
-    });
-  });
-  gettingFileNames.then((fileNames: string[]) => {
-    const program = TS.createProgram(fileNames, {
-      allowJs: true
-    });
-    const sourceFiles = program.getSourceFiles();
-    sourceFiles.forEach(sourceFile => parseSourceFile(program, sourceFile));
-
-    const classesToPrint = new Set<string>();
-    const relationsStrings = [];
-    classDefinitionMap.forEach((classDefinition, classFullName) => {
-      if (classDefinition.baseClassFullName !== "ember-data~Model") {
+function generateImage() {
+  console.log("Writing classes.svg");
+  //const decode = PUML.decode(FS.readFileSync('classes.puml').toString());
+  const gen = PUML.generate("classes.puml", { format: "svg" });
+  //decode.out.pipe(gen.in);
+  gen.out.pipe(FS.createWriteStream("classes.svg"));
+}
+function print() {
+  console.log("Writing classes.puml");
+  const classesToPrint = new Set<string>();
+  const relationsStrings = [];
+  classDefinitionMap.forEach((classDefinition, classFullName) => {
+    if (process.argv.indexOf('-e') > 0) {
+      if ((classDefinition.baseClassFullName !== "ember-data~Model") || (process.argv.indexOf('-a') > 0)) {
         const baseClassFullName = classDefinition.baseClassFullName;
         classesToPrint.add(classFullName);
         classesToPrint.add(baseClassFullName);
         relationsStrings.push(`\n"${baseClassFullName}" <|-- "${classFullName}"`);
       }
+    }
+    if (process.argv.indexOf('-r') > 0) {
       classDefinition.relationships.forEach(
-        ([propertyName, { type, modelName }]) => {
+        ([propertyName, {type, modelName}]) => {
           const currentProjectName = classFullName.split("/")[0];
           const fullNames = modelNamesToFullClassNames.get(modelName);
           let modelFullName = "";
@@ -400,50 +387,147 @@ function main() {
           if (type === "belongsTo") {
             if (modelFullName) {
               relationsStrings.push(
-                `\n"${classFullName}" o-- "1" "${modelFullName}" : ${propertyName}`
+                `"${classFullName}" o-- "1" "${modelFullName}" : ${propertyName}`
               );
             } else {
               relationsStrings.push(
-                `\n"${classFullName}" : ${modelName} : ${propertyName}`
+                `"${classFullName}" : ${modelName} : ${propertyName}`
               );
             }
           } else {
             if (modelFullName) {
               relationsStrings.push(
-                `\n"${classFullName}" o-- "*" "${modelFullName}" : ${propertyName}`
+                `"${classFullName}" o-- "*" "${modelFullName}" : ${propertyName}`
               );
             } else {
               relationsStrings.push(
-                `\n"${classFullName}" : ${modelName}[] : ${propertyName}`
+                `"${classFullName}" : ${modelName}[] : ${propertyName}`
               );
             }
           }
         }
       );
-    });
-    FS.writeFileSync("classes.puml", "@startuml");
-    classesToPrint.forEach(classFullName => {
+    }
+  });
+  const strings = ["@startuml"];
+  classesToPrint.forEach(classFullName => {
+    if (process.argv.indexOf('-n') > 0) {
       const projectName = classFullName.split("/")[0];
-      FS.appendFileSync(
-        "classes.puml",
-        `\npackage "${projectName}" {\n  class "${classFullName}"\n}`
-      );
+      strings.push(`package "${projectName}" {\n  class "${classFullName}"\n}`);
+    }
+    if (process.argv.indexOf('-d') > 0) {
       if (classDefinitionMap.has(classFullName)) {
         const classDefinition = classDefinitionMap.get(classFullName);
 
-        FS.appendFileSync(
-          "classes.puml",
-          getClassDefinitionString(classDefinition)
-        );
+        strings.push(getClassDefinitionString(classDefinition));
       }
-    });
+    }
+  });
 
-    FS.appendFileSync(
-      "classes.puml",
-      relationsStrings.join('')
-    );
-    FS.appendFileSync("classes.puml", "\n@enduml");
+  strings.push(relationsStrings.join("\n"));
+  strings.push("\n@enduml");
+  FS.writeFileSync("classes.puml", strings.join("\n"));
+}
+
+function output() {
+  console.log("Writing output");
+  print();
+  generateImage();
+}
+
+function main(dirname: string) {
+  console.log("Parsing sources");
+  const paths = [
+    Path.resolve(dirname, "./projects/boilerplate/addon/models"),
+    Path.resolve(dirname, "./projects/boilerplate/app/models"),
+    Path.resolve(dirname, "./projects/dashboard/app/models"),
+    Path.resolve(dirname, "./projects/partners_wheely_com/app/models"),
+    Path.resolve(dirname, "./projects/business_renovation/app/models")
+  ];
+  const gettingFileNames = new Promise(resolve => {
+    const fileNames = [];
+    let count = paths.length;
+    paths.forEach(path => {
+      parseDirectory(fileNames, path).then(() => {
+        count--;
+        if (count === 0) {
+          resolve(fileNames);
+        }
+      });
+    });
+  });
+  gettingFileNames.then((fileNames: string[]) => {
+    const program = TS.createProgram(fileNames, {
+      allowJs: true
+    });
+    const sourceFiles = program.getSourceFiles();
+    sourceFiles.forEach(sourceFile => parseSourceFile(program, sourceFile));
+    output();
+    console.log("Done");
   });
 }
 
-main();
+if (FS.existsSync(Path.resolve(__dirname, "./projects/"))) {
+  main(__dirname);
+} else {
+  const fetchOpts = {
+    callbacks: {
+      certificateCheck: function() {
+        return 1;
+      },
+      credentials: function(GITLAB_URL, userName) {
+        return Git.Cred.sshKeyFromAgent(userName);
+      },
+      transferProgress: function(info) {
+        return console.log(info);
+      }
+    }
+  };
+
+  console.log("Clonning git@github.com:wheely/boilerplate.git");
+  Git.Clone.clone(
+    "git@github.com:wheely/boilerplate.git",
+    "./projects/boilerplate/",
+    { fetchOpts }
+  )
+    .then(() => {
+      console.log("Clonning git@github.com:wheely/partners_wheely_com.git");
+      Git.Clone.clone(
+        "git@github.com:wheely/partners_wheely_com.git",
+        "./projects/partners_wheely_com",
+        { fetchOpts }
+      )
+        .then(() => {
+          console.log("git@github.com:wheely/dashboard.git");
+          Git.Clone.clone(
+            "git@github.com:wheely/dashboard.git",
+            "./projects/dashboard/",
+            { fetchOpts }
+          )
+            .then(() => {
+              console.log("git@github.com:wheely/business_wheely_com.git");
+              Git.Clone.clone(
+                "git@github.com:wheely/business_wheely_com.git",
+                "./projects/business_renovation/",
+                { fetchOpts, checkoutBranch: 'epic/renovation' }
+              )
+                .then(() => {
+                  console.log("Clonning complete");
+                  main(__dirname);
+                })
+                .catch(err => {
+                  console.log(err);
+                });
+            })
+            .catch(err => {
+              console.log(err);
+            });
+        })
+        .catch(err => {
+          console.log(err);
+        });
+    })
+    .catch(err => {
+      console.log(err);
+    });
+}
