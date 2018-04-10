@@ -2,6 +2,8 @@
 
 Перед запуском:
 
+Установить graphviz (для Mac: `brew install graphviz`)
+
 ```npm install```
 
 ```npm install ts-node -g```
