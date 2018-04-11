@@ -189,105 +189,89 @@ function parseModelNode(
   node: TS.Node
 ) {
   switch (node.kind) {
-    case TS.SyntaxKind.ExportAssignment:
-      const exportAssignment = node as TS.ExportAssignment;
-      switch (exportAssignment.expression.kind) {
-        case TS.SyntaxKind.CallExpression:
-          const callExpression = exportAssignment.expression as TS.CallExpression;
-          if (isCallExpressionIsExtending(callExpression)) {
-            const baseClassFullName = getBaseClassFullNameFromCallExpression(
-              program,
-              callExpression
-            );
-            const classFullName = getModuleName(sourceFile.fileName);
-            const mixins = [];
-            const attributes = [];
-            const relationships = [];
-            callExpression.arguments.forEach(argument => {
-              if (TS.isObjectLiteralExpression(argument)) {
-                argument.properties.forEach(property => {
-                  if (TS.isPropertyAssignment(property)) {
-                    let propertyName = "";
-                    if (
-                      TS.isIdentifier(property.name) ||
-                      TS.isStringLiteral(property.name)
-                    ) {
-                      propertyName = property.name.text;
-                    }
-                    if (TS.isCallExpression(property.initializer)) {
-                      const callerFullName = getFullNameByExpression(
-                        program,
-                        property.initializer.expression
-                      );
-                      switch (callerFullName) {
-                        case "ember-data~attr": {
-                          const typeArgument =
-                            property.initializer.arguments[0];
-                          let type: string = "attr";
-                          if (
-                            typeArgument &&
-                            TS.isStringLiteral(typeArgument)
-                          ) {
-                            type = type + ".<" + typeArgument.text + ">";
-                          }
-                          attributes.push([propertyName, type]);
-                          break;
-                        }
-                        case "ember-data~hasMany": {
-                          const typeArgument =
-                            property.initializer.arguments[0];
-                          let modelName = CC.paramCase(propertyName);
-                          if (
-                            typeArgument &&
-                            TS.isStringLiteral(typeArgument)
-                          ) {
-                            modelName = typeArgument.text;
-                          }
-                          relationships.push([
-                            propertyName,
-                            { type: "hasMany", modelName: modelName }
-                          ]);
-                          break;
-                        }
-                        case "ember-data~belongsTo": {
-                          const typeArgument =
-                            property.initializer.arguments[0];
-                          let modelName = CC.paramCase(propertyName);
-                          if (
-                            typeArgument &&
-                            TS.isStringLiteral(typeArgument)
-                          ) {
-                            modelName = typeArgument.text;
-                          }
-                          relationships.push([
-                            propertyName,
-                            { type: "belongsTo", modelName: modelName }
-                          ]);
-                          break;
-                        }
+    case TS.SyntaxKind.CallExpression:
+      const callExpression = node as TS.CallExpression;
+      if (isCallExpressionIsExtending(callExpression)) {
+        const baseClassFullName = getBaseClassFullNameFromCallExpression(
+          program,
+          callExpression
+        );
+        const classFullName = getModuleName(sourceFile.fileName);
+        const mixins = [];
+        const attributes = [];
+        const relationships = [];
+        callExpression.arguments.forEach(argument => {
+          if (TS.isObjectLiteralExpression(argument)) {
+            argument.properties.forEach(property => {
+              if (TS.isPropertyAssignment(property)) {
+                let propertyName = "";
+                if (
+                  TS.isIdentifier(property.name) ||
+                  TS.isStringLiteral(property.name)
+                ) {
+                  propertyName = property.name.text;
+                }
+                if (TS.isCallExpression(property.initializer)) {
+                  const callerFullName = getFullNameByExpression(
+                    program,
+                    property.initializer.expression
+                  );
+                  switch (callerFullName) {
+                    case "ember-data~attr": {
+                      const typeArgument = property.initializer.arguments[0];
+                      let type: string = "attr";
+                      if (typeArgument && TS.isStringLiteral(typeArgument)) {
+                        type = type + ".<" + typeArgument.text + ">";
                       }
+                      attributes.push([propertyName, type]);
+                      break;
+                    }
+                    case "ember-data~hasMany": {
+                      const typeArgument = property.initializer.arguments[0];
+                      let modelName = CC.paramCase(propertyName);
+                      if (typeArgument && TS.isStringLiteral(typeArgument)) {
+                        modelName = typeArgument.text;
+                      }
+                      relationships.push([
+                        propertyName,
+                        { type: "hasMany", modelName: modelName }
+                      ]);
+                      break;
+                    }
+                    case "ember-data~belongsTo": {
+                      const typeArgument = property.initializer.arguments[0];
+                      let modelName = CC.paramCase(propertyName);
+                      if (typeArgument && TS.isStringLiteral(typeArgument)) {
+                        modelName = typeArgument.text;
+                      }
+                      relationships.push([
+                        propertyName,
+                        { type: "belongsTo", modelName: modelName }
+                      ]);
+                      break;
                     }
                   }
-                });
-              } else if (TS.isIdentifier(argument)) {
-                const moxinFullName = getFullNameByExpression(
-                  program,
-                  argument
-                );
-                mixins.push(moxinFullName);
+                }
               }
             });
-            addClassDefinition(
-              classFullName,
-              baseClassFullName,
-              mixins,
-              attributes,
-              relationships
-            );
+          } else if (TS.isIdentifier(argument)) {
+            const moxinFullName = getFullNameByExpression(program, argument);
+            mixins.push(moxinFullName);
           }
-          break;
+        });
+        addClassDefinition(
+          classFullName,
+          baseClassFullName,
+          mixins,
+          attributes,
+          relationships
+        );
       }
       break;
+    default:
+      TS.forEachChild(node, node =>
+        parseModelNode(program, sourceFile, node)
+      );
   }
 }
 
@@ -355,17 +339,22 @@ function print() {
   const classesToPrint = new Set<string>();
   const relationsStrings = [];
   classDefinitionMap.forEach((classDefinition, classFullName) => {
-    if (process.argv.indexOf('-e') > 0) {
-      if ((classDefinition.baseClassFullName !== "ember-data~Model") || (process.argv.indexOf('-a') > 0)) {
+    if (process.argv.indexOf("-e") > 0) {
+      if (
+        classDefinition.baseClassFullName !== "ember-data~Model" ||
+        process.argv.indexOf("-a") > 0
+      ) {
         const baseClassFullName = classDefinition.baseClassFullName;
         classesToPrint.add(classFullName);
         classesToPrint.add(baseClassFullName);
-        relationsStrings.push(`\n"${baseClassFullName}" <|-- "${classFullName}"`);
+        relationsStrings.push(
+          `\n"${baseClassFullName}" <|-- "${classFullName}"`
+        );
       }
     }
-    if (process.argv.indexOf('-r') > 0) {
+    if (process.argv.indexOf("-r") > 0) {
       classDefinition.relationships.forEach(
-        ([propertyName, {type, modelName}]) => {
+        ([propertyName, { type, modelName }]) => {
           const currentProjectName = classFullName.split("/")[0];
           const fullNames = modelNamesToFullClassNames.get(modelName);
           let modelFullName = "";
@@ -411,11 +400,11 @@ function print() {
   });
   const strings = ["@startuml"];
   classesToPrint.forEach(classFullName => {
-    if (process.argv.indexOf('-n') > 0) {
+    if (process.argv.indexOf("-n") > 0) {
       const projectName = classFullName.split("/")[0];
       strings.push(`package "${projectName}" {\n  class "${classFullName}"\n}`);
     }
-    if (process.argv.indexOf('-d') > 0) {
+    if (process.argv.indexOf("-d") > 0) {
       if (classDefinitionMap.has(classFullName)) {
         const classDefinition = classDefinitionMap.get(classFullName);
 
@@ -509,7 +498,7 @@ if (FS.existsSync(Path.resolve(__dirname, "./projects/"))) {
               Git.Clone.clone(
                 "git@github.com:wheely/business_wheely_com.git",
                 "./projects/business_renovation/",
-                { fetchOpts, checkoutBranch: 'epic/renovation' }
+                { fetchOpts, checkoutBranch: "epic/renovation" }
               )
                 .then(() => {
                   console.log("Clonning complete");
