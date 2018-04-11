@@ -147,18 +147,6 @@ function addClassDefinition(
   }
 }
 
-const projectInfoMap = new Map<string, Object>();
-function getProjectInfo(projectPath: string) {
-  if (projectInfoMap.has(projectPath)) {
-    return projectInfoMap.get(projectPath);
-  }
-  const projectInfo = JSON.parse(
-    FS.readFileSync(projectPath + Path.sep + "package.json").toString()
-  );
-  projectInfoMap.set(projectPath, projectInfo);
-  return projectInfo;
-}
-
 function getModuleName(fileName: string) {
   fileName =
     Path.dirname(fileName) +
@@ -172,8 +160,7 @@ function getModuleName(fileName: string) {
   if (index > 0) {
     const projectPathParts = fileNameParts.slice(0, index);
     const projectPath = projectPathParts.join(Path.sep);
-    const projectInfo = getProjectInfo(projectPath);
-    let projectName = projectInfo["name"] || "";
+    let projectName = Path.basename(projectPath) || "";
     if (projectName.indexOf("@wheely/") === 0) {
       projectName = projectName.slice("@wheely/".length);
     }
