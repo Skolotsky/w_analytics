@@ -446,7 +446,7 @@ function main(dirname: string) {
 if (FS.existsSync(Path.resolve(__dirname, "./projects/"))) {
   main(__dirname);
 } else {
-  const fetchOpts = {
+  const fetchOpts: Git.FetchOptions = {
     callbacks: {
       certificateCheck: function() {
         return 1;
