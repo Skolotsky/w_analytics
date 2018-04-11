@@ -425,8 +425,8 @@ function output() {
       console.log(modelName2 + ' not exist');
     }
     if (model1 && model2) {
-      const attrs1 = getClassDefinitionAttributes(model1).replace(' ', '').toLowerCase();
-      const attrs2 = getClassDefinitionAttributes(model2).replace(' ', '').toLowerCase();
+      const attrs1 = getClassDefinitionAttributes(model1).toLowerCase();
+      const attrs2 = getClassDefinitionAttributes(model2).toLowerCase();
       const added = ['+'];
       const removed = ['-'];
       Diff.diffLines(attrs1, attrs2).forEach((diff) => {
