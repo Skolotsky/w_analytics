@@ -256,9 +256,7 @@ function parseModelNode(
       }
       break;
     default:
-      TS.forEachChild(node, node =>
-        parseModelNode(program, sourceFile, node)
-      );
+      TS.forEachChild(node, node => parseModelNode(program, sourceFile, node));
   }
 }
 
@@ -326,11 +324,11 @@ function print() {
   const classesToPrint = new Set<string>();
   const relationsStrings = [];
   classDefinitionMap.forEach((classDefinition, classFullName) => {
+    if (process.argv.indexOf("-a") > 0) {
+      classesToPrint.add(classFullName);
+    }
     if (process.argv.indexOf("-e") > 0) {
-      if (
-        classDefinition.baseClassFullName !== "ember-data~Model" ||
-        process.argv.indexOf("-a") > 0
-      ) {
+      if (classDefinition.baseClassFullName !== "ember-data~Model") {
         const baseClassFullName = classDefinition.baseClassFullName;
         classesToPrint.add(classFullName);
         classesToPrint.add(baseClassFullName);
