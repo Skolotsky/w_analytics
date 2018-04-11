@@ -309,6 +309,7 @@ function parseDirectory(fileNames: string[], path: string) {
 function getClassDefinitionString(classDefinition: IClassDefinition) {
   const attributesString = classDefinition.attributes
     .map(([name, type]) => `${name} : ${type}`)
+    .sort()
     .join("\n");
   return `class "${classDefinition.classFullName}" {\n${attributesString}\n}`;
 }
