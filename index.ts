@@ -4,6 +4,7 @@ import * as TS from "typescript";
 import * as CC from "change-case";
 import * as Git from "nodegit";
 import * as PUML from "node-plantuml";
+import * as Diff from "diff";
 
 const EXTEND = "extend";
 const MODULE_CHILD_DELIMETER = "~";
@@ -306,11 +307,15 @@ function parseDirectory(fileNames: string[], path: string) {
   });
 }
 
-function getClassDefinitionString(classDefinition: IClassDefinition) {
-  const attributesString = classDefinition.attributes
+function getClassDefinitionAttributes(classDefinition: IClassDefinition) {
+  return classDefinition.attributes
     .map(([name, type]) => `${name} : ${type}`)
     .sort()
     .join("\n");
+}
+
+function getClassDefinitionString(classDefinition: IClassDefinition) {
+  const attributesString = getClassDefinitionAttributes(classDefinition);
   return `class "${classDefinition.classFullName}" {\n${attributesString}\n}`;
 }
 
@@ -407,8 +412,39 @@ function print() {
 
 function output() {
   console.log("Writing output");
-  print();
-  generateImage();
+  const diffIndex = process.argv.indexOf("--diff");
+  if (diffIndex > 0) {
+    const modelName1 = process.argv[diffIndex + 1];
+    const modelName2 = process.argv[diffIndex + 2];
+    const model1 = classDefinitionMap.get(modelName1);
+    const model2 = classDefinitionMap.get(modelName2);
+    if (!model1) {
+      console.log(modelName1 + ' not exist');
+    }
+    if (!model2) {
+      console.log(modelName2 + ' not exist');
+    }
+    if (model1 && model2) {
+      const attrs1 = getClassDefinitionAttributes(model1).replace(' ', '').toLowerCase();
+      const attrs2 = getClassDefinitionAttributes(model2).replace(' ', '').toLowerCase();
+      const added = ['+'];
+      const removed = ['-'];
+      Diff.diffLines(attrs1, attrs2).forEach((diff) => {
+        if (diff.added) {
+          added.push(diff.value.trim());
+        }
+        if (diff.removed) {
+          removed.push(diff.value.trim());
+        }
+      });
+      console.log("Writing classes.puml");
+      const content = [modelName1, attrs1, '', modelName2, attrs2, '', added.join('\n'), '', removed.join('\n')];
+      FS.writeFileSync("diff.txt", content.join('\n'));
+    }
+  } else {
+    print();
+    generateImage();
+  }
 }
 
 function main(dirname: string) {
