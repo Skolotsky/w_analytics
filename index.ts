@@ -29,30 +29,31 @@ function getIdentifierModuleName(
   const checker = program.getTypeChecker();
   const symbol = checker.getSymbolAtLocation(identifier);
   if (symbol.declarations && symbol.declarations[0]) {
-    let declaration = symbol.declarations[0];
+    let declaration: TS.Node = symbol.declarations[0];
+    let names = [];
     if (TS.isBindingElement(declaration)) {
-      let parent:
+      let node:
         | TS.VariableDeclaration
         | TS.ParameterDeclaration
         | TS.BindingElement = declaration;
-      let names = [];
-      while (TS.isBindingElement(parent)) {
-        if (parent.propertyName && TS.isIdentifier(parent.propertyName)) {
-          names.push(parent.propertyName.text);
-        } else if (TS.isIdentifier(parent.name)) {
-          names.push(parent.name.text);
+      while (TS.isBindingElement(node)) {
+        if (node.propertyName && TS.isIdentifier(node.propertyName)) {
+          names.push(node.propertyName.text);
+        } else if (TS.isIdentifier(node.name)) {
+          names.push(node.name.text);
         }
-        if (TS.isObjectBindingPattern(parent.parent)) {
-          parent = parent.parent.parent;
+        if (TS.isObjectBindingPattern(node.parent)) {
+          node = node.parent.parent;
         }
       }
-      if (TS.isVariableDeclaration(parent)) {
-        return getFullNameByExpression(
-          program,
-          parent.initializer,
-          names.join(MEMBER_DELIMETER)
-        );
-      }
+      declaration = node;
+    }
+    if (TS.isVariableDeclaration(declaration)) {
+      return getFullNameByExpression(
+        program,
+        declaration.initializer,
+        names.join(MEMBER_DELIMETER)
+      );
     }
     if (TS.isImportSpecifier(declaration)) {
       declaration = declaration.parent.parent;
@@ -65,6 +66,7 @@ function getIdentifierModuleName(
         }
       }
     }
+    debugger;
   }
   return "";
 }
@@ -437,7 +439,6 @@ function main(dirname: string) {
     const sourceFiles = program.getSourceFiles();
     sourceFiles.forEach(sourceFile => parseSourceFile(program, sourceFile));
     output();
-    console.log("Done");
   });
 }
 
