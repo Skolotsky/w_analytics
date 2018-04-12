@@ -437,7 +437,7 @@ function output() {
           removed.push(diff.value.trim());
         }
       });
-      console.log("Writing classes.puml");
+      console.log("Writing diff.txt");
       const content = [modelName1, attrs1, '', modelName2, attrs2, '', added.join('\n'), '', removed.join('\n')];
       FS.writeFileSync("diff.txt", content.join('\n'));
     }
