@@ -29,9 +29,9 @@ function getIdentifierModuleName(
 ) {
   const checker = program.getTypeChecker();
   const symbol = checker.getSymbolAtLocation(identifier);
-  if (symbol.declarations && symbol.declarations[0]) {
+  if (symbol && symbol.declarations && symbol.declarations[0]) {
     let declaration: TS.Node = symbol.declarations[0];
-    let names = [];
+    let names: string[] = [];
     if (TS.isBindingElement(declaration)) {
       let node:
         | TS.VariableDeclaration
@@ -43,23 +43,27 @@ function getIdentifierModuleName(
         } else if (TS.isIdentifier(node.name)) {
           names.push(node.name.text);
         }
-        if (TS.isObjectBindingPattern(node.parent)) {
-          node = node.parent.parent;
+        if (node.parent && TS.isObjectBindingPattern(node.parent)) {
+          if (node.parent.parent) {
+            node = node.parent.parent;
+          } else {
+            break;
+          }
         }
       }
       declaration = node;
     }
-    if (TS.isVariableDeclaration(declaration)) {
+    if (TS.isVariableDeclaration(declaration) && declaration.initializer) {
       return getFullNameByExpression(
         program,
         declaration.initializer,
         names.join(MEMBER_DELIMETER)
       );
     }
-    if (TS.isImportSpecifier(declaration)) {
+    if (TS.isImportSpecifier(declaration) && declaration.parent && declaration.parent.parent) {
       declaration = declaration.parent.parent;
     }
-    if (TS.isImportClause(declaration)) {
+    if (TS.isImportClause(declaration) && declaration.parent) {
       if (TS.isImportDeclaration(declaration.parent)) {
         const moduleSpecifier = declaration.parent.moduleSpecifier;
         if (TS.isLiteralExpression(moduleSpecifier)) {
@@ -75,7 +79,7 @@ function getFullNameByExpression(
   program: TS.Program,
   expression: TS.Expression,
   name?: string
-) {
+): string {
   let fullName = "";
   if (TS.isIdentifier(expression)) {
     const identifier = expression;
@@ -92,7 +96,7 @@ function getFullNameByExpression(
     fullName = getFullNameByExpression(program, expression.expression, newName);
   }
   if (aliases.has(fullName)) {
-    return aliases.get(fullName);
+    return aliases.get(fullName) as string;
   }
   return fullName;
 }
@@ -144,7 +148,7 @@ function addClassDefinition(
     if (!modelNamesToFullClassNames.has(modelName)) {
       modelNamesToFullClassNames.set(modelName, []);
     }
-    const fullNames = modelNamesToFullClassNames.get(modelName);
+    const fullNames = modelNamesToFullClassNames.get(modelName) as string[];
     fullNames.push(classFullName);
   }
 }
@@ -186,9 +190,9 @@ function parseModelNode(
           callExpression
         );
         const classFullName = getModuleName(sourceFile.fileName);
-        const mixins = [];
-        const attributes = [];
-        const relationships = [];
+        const mixins: string[] = [];
+        const attributes: [string, string][] = [];
+        const relationships: [string, IRelationship][]  = [];
         callExpression.arguments.forEach(argument => {
           if (TS.isObjectLiteralExpression(argument)) {
             argument.properties.forEach(property => {
@@ -329,7 +333,7 @@ function generateImage() {
 function print() {
   console.log("Writing classes.puml");
   const classesToPrint = new Set<string>();
-  const relationsStrings = [];
+  const relationsStrings: string[] = [];
   classDefinitionMap.forEach((classDefinition, classFullName) => {
     if (process.argv.indexOf("-a") > 0) {
       classesToPrint.add(classFullName);
@@ -398,7 +402,7 @@ function print() {
     }
     if (process.argv.indexOf("-d") > 0) {
       if (classDefinitionMap.has(classFullName)) {
-        const classDefinition = classDefinitionMap.get(classFullName);
+        const classDefinition = classDefinitionMap.get(classFullName) as IClassDefinition;
 
         strings.push(getClassDefinitionString(classDefinition));
       }
@@ -410,7 +414,7 @@ function print() {
   FS.writeFileSync("classes.puml", strings.join("\n"));
 }
 
-function output() {
+function output(classDefinitionMap: Map<string, IClassDefinition>) {
   console.log("Writing output");
   const diffIndex = process.argv.indexOf("--diff");
   if (diffIndex > 0) {
@@ -447,16 +451,8 @@ function output() {
   }
 }
 
-function main(dirname: string) {
-  console.log("Parsing sources");
-  const paths = [
-    Path.resolve(dirname, "./projects/boilerplate/addon/models"),
-    Path.resolve(dirname, "./projects/boilerplate/app/models"),
-    Path.resolve(dirname, "./projects/dashboard/app/models"),
-    Path.resolve(dirname, "./projects/partners_wheely_com/app/models"),
-    Path.resolve(dirname, "./projects/business_renovation/app/models")
-  ];
-  const gettingFileNames = new Promise(resolve => {
+function getFileNames(paths: string[]): Promise<string[]> {
+  return new Promise(resolve => {
     const fileNames = [];
     let count = paths.length;
     paths.forEach(path => {
@@ -468,13 +464,30 @@ function main(dirname: string) {
       });
     });
   });
-  gettingFileNames.then((fileNames: string[]) => {
-    const program = TS.createProgram(fileNames, {
-      allowJs: true
-    });
-    const sourceFiles = program.getSourceFiles();
-    sourceFiles.forEach(sourceFile => parseSourceFile(program, sourceFile));
-    output();
+}
+
+function parse(fileNames: string[]) {
+  console.log("Parsing sources");
+  const program = TS.createProgram(fileNames, {
+    allowJs: true
+  });
+  const sourceFiles = program.getSourceFiles();
+  sourceFiles.forEach(sourceFile => parseSourceFile(program, sourceFile));
+  return classDefinitionMap;
+}
+
+function main(dirname: string) {
+  const paths = [
+    Path.resolve(dirname, "./projects/boilerplate/addon/models"),
+    Path.resolve(dirname, "./projects/boilerplate/app/models"),
+    Path.resolve(dirname, "./projects/dashboard/app/models"),
+    Path.resolve(dirname, "./projects/partners_wheely_com/app/models"),
+    Path.resolve(dirname, "./projects/business_renovation/app/models")
+  ];
+  console.log("Getting file names");
+  getFileNames(paths).then((fileNames: string[]) => {
+    const classDefinitionMap = parse(fileNames);
+    output(classDefinitionMap);
   });
 }
 
