@@ -106,6 +106,12 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
       style: styleOverrideTable[range.styleNumber],
       text: node.characters.slice(range.start, range.end)
     }));
+    if (node.characterStyleOverrides.length < node.characters.length) {
+      textParts.push({
+        style: node.style,
+        text: node.characters.slice(node.characterStyleOverrides.length)
+      });
+    }
     vdomNode.children = textParts.map(textPart => {
       const vdomNode = VDOM.createNode();
       if (textPart.style && textPart.style !== node.style) {
@@ -360,14 +366,6 @@ export function getImagesByFile(
         }
       }
       if (count === 0) {
-        // if (!fs.existsSync("images/")) {
-        //   fs.mkdirSync("images/");
-        // }
-        // Object.keys(imageURLMap).forEach(key => {
-        //   download(imageURLMap[key], `images/${key}.${format}`).then(fileName =>
-        //     console.log(`${fileName} is downloaded`)
-        //   );
-        // });
         resolve(imageURLMap);
       }
     }
@@ -393,13 +391,29 @@ export function getImagesByFile(
   });
 }
 
-export function getLibImagesByFileId(
-  fileId: string,
-  token: string
-): Promise<ImageURLMap> {
-  return getFile(fileId, token).then(libFile =>
-    getImagesByFile(fileId, token, libFile, true)
-  );
+// export function getLibImagesByFileId(
+//   fileId: string,
+//   token: string
+// ): Promise<ImageURLMap> {
+//   return getFile(fileId, token).then(libFile =>
+//     getImagesByFile(fileId, token, libFile, true)
+//   );
+// }
+
+export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
+  if (!fs.existsSync("images/")) {
+    fs.mkdirSync("images/");
+  }
+  if (!fs.existsSync(`images/${fileId}`)) {
+    fs.mkdirSync(`images/${fileId}`);
+  }
+  Object.keys(imageURLMap).forEach(key => {
+    const fileName = `images/${fileId}/${key.replace(":", "_")}.svg`;
+    download(imageURLMap[key], fileName).then(fileName =>
+      console.log(`${fileName} is downloaded`)
+    );
+    imageURLMap[key] = fileName;
+  });
 }
 
 export function getVDOMByFileId(
@@ -407,28 +421,36 @@ export function getVDOMByFileId(
   token: string
 ): Promise<VDOM.Node | null> {
   return new Promise(resolve => {
-    const iconsFileId = "CnuhMOy5TfybQdwpmMkKrdIn";
-    const webFileId = "UCkOGVgsS5Dx5prMzvFnS9SB";
-    getLibImagesByFileId(iconsFileId, token)
-      .then(imageURLMap =>
-        getLibImagesByFileId(webFileId, token).then(newImageURLMap =>
-          Object.assign(imageURLMap, newImageURLMap)
-        )
-      )
-      .then(imageURLMap =>
-        getFile(fileId, token).then(file =>
-          getImagesByFile(fileId, token, file).then(newImageURLMap => {
-            Object.keys(file.components).forEach(id => {
-              const component = file.components[id];
-              const url = imageURLMap[component.name];
-              if (imageURLMap[component.name]) {
-                newImageURLMap[id] = url;
-              }
-            });
-            console.log(JSON.stringify(newImageURLMap, undefined, ' '));
-            resolve(parseNode(newImageURLMap, file.components, file.document));
-          })
-        )
-      );
+    getFile(fileId, token).then(file =>
+      getImagesByFile(fileId, token, file).then(imageURLMap => {
+        downloadImages(fileId, imageURLMap);
+        console.log(JSON.stringify(imageURLMap, undefined, " "));
+        resolve(parseNode(imageURLMap, file.components, file.document));
+      })
+    );
+    // const iconsFileId = "CnuhMOy5TfybQdwpmMkKrdIn";
+    // const webFileId = "UCkOGVgsS5Dx5prMzvFnS9SB";
+    // getLibImagesByFileId(iconsFileId, token)
+    //   .then(imageURLMap =>
+    //     getLibImagesByFileId(webFileId, token).then(newImageURLMap =>
+    //       Object.assign(imageURLMap, newImageURLMap)
+    //     )
+    //   )
+    //   .then(imageURLMap =>
+    //     getFile(fileId, token).then(file =>
+    //       getImagesByFile(fileId, token, file).then(newImageURLMap => {
+    //         Object.keys(file.components).forEach(id => {
+    //           const component = file.components[id];
+    //           const url = imageURLMap[component.name];
+    //           if (imageURLMap[component.name]) {
+    //             newImageURLMap[id] = url;
+    //           }
+    //         });
+    //         downloadImages(imageURLMap);
+    //         console.log(JSON.stringify(newImageURLMap, undefined, " "));
+    //         resolve(parseNode(newImageURLMap, file.components, file.document));
+    //       })
+    //     )
+    //   );
   });
 }
