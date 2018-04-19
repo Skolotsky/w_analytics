@@ -50,6 +50,160 @@ function toStyle(typeStyle: Figma.TypeStyle, style: VDOM.Style) {
 
 type ImageURLMap = { [key: string]: string };
 
+function parseRECTANGLE(node: Figma.RECTANGLE, vdomNode: VDOM.Node) {
+  if (node.fills.length > 0) {
+    const fill = node.fills[0];
+    if (fill && fill.color) {
+      if (
+        node.absoluteBoundingBox.height > 1 &&
+        node.absoluteBoundingBox.width > 1
+      ) {
+        vdomNode.style.set(
+          "border",
+          `${node.strokeWeight}px solid ${toCSSColor(fill.color)}`
+        );
+      } else if (node.absoluteBoundingBox.width > 1) {
+        vdomNode.style.set(
+          "border-top",
+          `${node.strokeWeight}px solid ${toCSSColor(fill.color)}`
+        );
+      } else {
+        vdomNode.style.set(
+          "border-left",
+          `${node.strokeWeight}px solid ${toCSSColor(fill.color)}`
+        );
+      }
+    }
+  }
+  if (node.cornerRadius) {
+    vdomNode.style.set("border-radius", `${node.cornerRadius}px`);
+  }
+}
+
+function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
+  if (node.characterStyleOverrides.length) {
+    const styleOverrideTable = {
+      "0": node.style,
+      ...node.styleOverrideTable
+    };
+    const ranges: { styleNumber: number; start: number; end: number }[] = [
+      { styleNumber: 0, start: 0, end: 0 }
+    ];
+    let prevStyleNumber = 0;
+    let end = 0;
+    node.characterStyleOverrides.forEach(styleNumber => {
+      end++;
+      if (styleNumber === prevStyleNumber) {
+        ranges[ranges.length - 1].end = end;
+      } else {
+        prevStyleNumber = styleNumber;
+        ranges.push({ styleNumber, start: end - 1, end });
+      }
+    });
+    const textParts = ranges.map(range => ({
+      style: styleOverrideTable[range.styleNumber],
+      text: node.characters.slice(range.start, range.end)
+    }));
+    vdomNode.children = textParts.map(textPart => {
+      const vdomNode = VDOM.createNode();
+      if (textPart.style && textPart.style !== node.style) {
+        toStyle(textPart.style, vdomNode.style);
+      }
+      vdomNode.text = textPart.text;
+      vdomNode.tag = "SPAN";
+      return vdomNode;
+    });
+  } else {
+    vdomNode.text = node.characters;
+  }
+  if (node.style) {
+    toStyle(node.style, vdomNode.style);
+  }
+  if (node.fills.length > 0) {
+    const textFill = node.fills[0];
+    if (textFill && textFill.color) {
+      vdomNode.style.set("color", toCSSColor(textFill.color));
+    }
+  }
+}
+
+function parseAbsoluteBoxBounded(
+  node: Figma.AbsoluteBoxBounded,
+  vdomNode: VDOM.Node,
+  parent?: Figma.Node
+) {
+  let parentX = 0;
+  let parentY = 0;
+  let parentW = Infinity;
+  let parentH = Infinity;
+  if (parent && Figma.isAbsoluteBoxBounded(parent)) {
+    parentX = parent.absoluteBoundingBox.x;
+    parentY = parent.absoluteBoundingBox.y;
+    parentW = parent.absoluteBoundingBox.width;
+    parentH = parent.absoluteBoundingBox.height;
+  }
+  const xl = node.absoluteBoundingBox.x - parentX;
+  let xr = xl + node.absoluteBoundingBox.width;
+  const yt = node.absoluteBoundingBox.y - parentY;
+  let yb = yt + node.absoluteBoundingBox.height;
+  const w = xr - xl;
+  const h = yb - yt;
+  const horizontal = node.constraints.horizontal;
+  const vertical = node.constraints.vertical;
+  if (horizontal === "LEFT" || horizontal === "LEFT_RIGHT") {
+    vdomNode.style.set("left", `${xl}px`);
+  }
+  if (horizontal === "RIGHT" || horizontal === "LEFT_RIGHT") {
+    vdomNode.style.set("right", `${parentW - xr}px`);
+  }
+  if (horizontal === "CENTER") {
+    const offset = Math.ceil(w / 2);
+    vdomNode.style.set("left", `calc(50% - ${offset}px)`);
+    vdomNode.style.set("right", `calc(50% - ${offset}px)`);
+  }
+  if (horizontal === "SCALE") {
+    const offset = Math.ceil((parentW - w) / 2 * 100 / parentW);
+    vdomNode.style.set("left", `${offset}%`);
+    vdomNode.style.set("right", `${offset}%`);
+  }
+  if (horizontal === "LEFT" || horizontal === "RIGHT") {
+    vdomNode.style.set("width", `${w}px`);
+  }
+  if (vertical === "TOP" || vertical === "TOP_BOTTOM") {
+    vdomNode.style.set("top", `${yt}px`);
+  }
+  if (vertical === "BOTTOM" || vertical === "TOP_BOTTOM") {
+    vdomNode.style.set("bottom", `${parentH - yb}px`);
+  }
+  if (vertical === "CENTER") {
+    const offset = Math.ceil(h / 2);
+    vdomNode.style.set("top", `calc(50% - ${offset}px)`);
+    vdomNode.style.set("bottom", `calc(50% - ${offset}px)`);
+  }
+  if (vertical === "SCALE") {
+    const offset = Math.ceil((parentH - h) / 2 * 100 / parentH);
+    vdomNode.style.set("top", `${offset}%`);
+    vdomNode.style.set("bottom", `${offset}%`);
+  }
+  if (vertical === "TOP" || vertical === "BOTTOM") {
+    vdomNode.style.set("height", `${h}px`);
+  }
+}
+
+function parseEffected(node: Figma.Effected, vdomNode: VDOM.Node) {
+  const visibleEffects = node.effects.filter(effect => effect.visible);
+  const shadows = visibleEffects
+    .filter(effect => effect.type === "DROP_SHADOW")
+    .map(
+      effect =>
+        `${effect.offset.x}px ${effect.offset.y}px ${
+          effect.radius
+        }px ${toCSSColor(effect.color)}`
+    )
+    .join(", ");
+  vdomNode.style.set("box-shadow", shadows);
+}
+
 function parseNode(
   imageURLMap: ImageURLMap,
   components: Figma.ComponentRefMap,
@@ -59,15 +213,11 @@ function parseNode(
   const vdomNode: VDOM.Node = VDOM.createNode();
   vdomNode.attributes.set("data-name", node.name);
   vdomNode.attributes.set("data-type", node.type);
-  //vdomNode.style.set("position", `absolute`);
   if (Figma.isDOCUMENT(node)) {
   }
   if (Figma.isCANVAS(node)) {
   }
   if (Figma.isFRAME(node)) {
-    if (node.preserveRatio) {
-      vdomNode.classes.add("preserveRatio");
-    }
   }
   if (Figma.isGROUP(node)) {
   }
@@ -84,80 +234,10 @@ function parseNode(
   if (Figma.isREGULAR_POLYGON(node)) {
   }
   if (Figma.isRECTANGLE(node)) {
-    if (node.fills.length > 0) {
-      const fill = node.fills[0];
-      if (fill && fill.color) {
-        if (
-          node.absoluteBoundingBox.height > 1 &&
-          node.absoluteBoundingBox.width > 1
-        ) {
-          vdomNode.style.set(
-            "border",
-            `${node.strokeWeight}px solid ${toCSSColor(fill.color)}`
-          );
-        } else if (node.absoluteBoundingBox.width > 1) {
-          vdomNode.style.set(
-            "border-top",
-            `${node.strokeWeight}px solid ${toCSSColor(fill.color)}`
-          );
-        } else {
-          vdomNode.style.set(
-            "border-left",
-            `${node.strokeWeight}px solid ${toCSSColor(fill.color)}`
-          );
-        }
-      }
-    }
-    if (node.cornerRadius) {
-      vdomNode.style.set("border-radius", `${node.cornerRadius}px`);
-    }
+    parseRECTANGLE(node, vdomNode);
   }
   if (Figma.isTEXT(node)) {
-    if (node.characterStyleOverrides.length) {
-      const styleOverrideTable = {
-        "0": node.style,
-        ...node.styleOverrideTable
-      };
-      const ranges: { styleNumber: number; start: number; end: number }[] = [
-        { styleNumber: 0, start: 0, end: 0 }
-      ];
-      let prevStyleNumber = 0;
-      let end = 0;
-      node.characterStyleOverrides.forEach(styleNumber => {
-        end++;
-        if (styleNumber === prevStyleNumber) {
-          ranges[ranges.length - 1].end = end;
-        } else {
-          prevStyleNumber = styleNumber;
-          ranges.push({ styleNumber, start: end - 1, end });
-        }
-      });
-      const textParts = ranges.map(range => ({
-        style: styleOverrideTable[range.styleNumber],
-        text: node.characters.slice(range.start, range.end)
-      }));
-      vdomNode.children = textParts.map(textPart => {
-        const vdomNode = VDOM.createNode();
-        if (textPart.style && textPart.style !== node.style) {
-          toStyle(textPart.style, vdomNode.style);
-        }
-        vdomNode.text = textPart.text;
-        vdomNode.tag = "SPAN";
-        return vdomNode;
-      });
-    } else {
-      vdomNode.text = node.characters;
-    }
-    if (node.style) {
-      toStyle(node.style, vdomNode.style);
-    }
-    if (node.fills.length > 0) {
-      const textFill = node.fills[0];
-      if (textFill && textFill.color) {
-        vdomNode.style.set("color", toCSSColor(textFill.color));
-      }
-    }
-    //vdomNode.style.set("word-wrap", "break-word");
+    parseTEXT(node, vdomNode);
   }
   if (Figma.isSLICE(node)) {
   }
@@ -174,89 +254,18 @@ function parseNode(
 
   vdomNode.style.set("position", "absolute");
   if (Figma.isAbsoluteBoxBounded(node)) {
-    let parentX = 0;
-    let parentY = 0;
-    let parentW = Infinity;
-    let parentH = Infinity;
-    if (parent && Figma.isAbsoluteBoxBounded(parent)) {
-      parentX = parent.absoluteBoundingBox.x;
-      parentY = parent.absoluteBoundingBox.y;
-      parentW = parent.absoluteBoundingBox.width;
-      parentH = parent.absoluteBoundingBox.height;
-    }
-    const xl = node.absoluteBoundingBox.x - parentX;
-    let xr = xl + node.absoluteBoundingBox.width;
-    const yt = node.absoluteBoundingBox.y - parentY;
-    let yb = yt + node.absoluteBoundingBox.height;
-    // if (Figma.isTEXT(node)) {
-    //   xr = Math.min(xr, parentW);
-    //   yb = Math.min(yb, parentH);
-    // }
-    const w = xr - xl;
-    const h = yb - yt;
-    const horizontal = node.constraints.horizontal;
-    const vertical = node.constraints.vertical;
-    if (horizontal === "LEFT" || horizontal === "LEFT_RIGHT") {
-      vdomNode.style.set("left", `${xl}px`);
-    }
-    if (horizontal === "RIGHT" || horizontal === "LEFT_RIGHT") {
-      vdomNode.style.set("right", `${parentW - xr}px`);
-    }
-    if (horizontal === "CENTER") {
-      const offset = Math.ceil(w / 2);
-      vdomNode.style.set("left", `calc(50% - ${offset}px)`);
-      vdomNode.style.set("right", `calc(50% - ${offset}px)`);
-    }
-    if (horizontal === "SCALE") {
-      const offset = Math.ceil((parentW - w) / 2 * 100 / parentW);
-      vdomNode.style.set("left", `${offset}%`);
-      vdomNode.style.set("right", `${offset}%`);
-    }
-    if (horizontal === "LEFT" || horizontal === "RIGHT") {
-      vdomNode.style.set("width", `${w}px`);
-    }
-    if (vertical === "TOP" || vertical === "TOP_BOTTOM") {
-      vdomNode.style.set("top", `${yt}px`);
-    }
-    if (vertical === "BOTTOM" || vertical === "TOP_BOTTOM") {
-      vdomNode.style.set("bottom", `${parentH - yb}px`);
-    }
-    if (vertical === "CENTER") {
-      const offset = Math.ceil(h / 2);
-      vdomNode.style.set("top", `calc(50% - ${offset}px)`);
-      vdomNode.style.set("bottom", `calc(50% - ${offset}px)`);
-    }
-    if (vertical === "SCALE") {
-      const offset = Math.ceil((parentH - h) / 2 * 100 / parentH);
-      vdomNode.style.set("top", `${offset}%`);
-      vdomNode.style.set("bottom", `${offset}%`);
-    }
-    if (vertical === "TOP" || vertical === "BOTTOM") {
-      vdomNode.style.set("height", `${h}px`);
-    }
-    //vdomNode.style.set("border", `1px solid red`);
+    parseAbsoluteBoxBounded(node, vdomNode, parent);
   }
   if (Figma.isBackgroundColored(node)) {
     vdomNode.style.set("background-color", toCSSColor(node.backgroundColor));
   }
   if (Figma.isEffected(node)) {
-    const visibleEffects = node.effects.filter(effect => effect.visible);
-    const shadows = visibleEffects
-      .filter(effect => effect.type === "DROP_SHADOW")
-      .map(
-        effect =>
-          `${effect.offset.x}px ${effect.offset.y}px ${
-            effect.radius
-          }px ${toCSSColor(effect.color)}`
-      )
-      .join(", ");
-    vdomNode.style.set("box-shadow", shadows);
+    parseEffected(node, vdomNode);
   }
   if (node.visible === false) {
     vdomNode.style.set("visibility", "hidden");
   }
   if (Figma.isIcon(node)) {
-    //vdomNode.style.set("background-color", "red");
     vdomNode.tag = "IMG";
     vdomNode.attributes.set("src", imageURLMap[node.id]);
   }
@@ -273,7 +282,6 @@ function getImageIds(
   node: Figma.Node
 ) {
   if (Figma.isSubTree(node)) {
-    let count = node.children.length;
     node.children.forEach(child => {
       getImageIds(imageIds, child);
     });
