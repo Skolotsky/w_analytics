@@ -1,3 +1,5 @@
+import * as fs from "fs";
+import * as request from "request";
 import * as FigmaEndpoint from "figma-js";
 import { Figma } from "./figma-definitions";
 import { VDOM } from "./vdom-definitions";
@@ -245,14 +247,22 @@ function parseNode(
   if (Figma.isCOMPONENT(node)) {
     vdomNode.attributes.set("data-component", node.id);
   }
+  let libImage = imageURLMap[node.id] || "";
   if (Figma.isINSTANCE(node)) {
     vdomNode.attributes.set("data-component-id", node.componentId);
     const component = components[node.componentId];
+    if (imageURLMap[node.componentId]) {
+      libImage = imageURLMap[node.componentId];
+    }
     if (component) {
+      if (imageURLMap[component.name]) {
+        libImage = imageURLMap[component.name];
+      }
       vdomNode.attributes.set("data-component-name", component.name);
     }
   }
 
+  vdomNode.style.set("position", "absolute");
   if (Figma.isAbsoluteBoxBounded(node)) {
     parseAbsoluteBoxBounded(node, vdomNode, parent);
   }
@@ -265,11 +275,10 @@ function parseNode(
   if (node.visible === false) {
     vdomNode.style.set("visibility", "hidden");
   }
-  if (Figma.isIcon(node)) {
+  if (libImage) {
     vdomNode.tag = "IMG";
-    vdomNode.attributes.set("src", imageURLMap[node.id]);
-  }
-  if (Figma.isSubTree(node)) {
+    vdomNode.attributes.set("src", libImage);
+  } else if (Figma.isSubTree(node)) {
     vdomNode.children = node.children
       .reverse()
       .map(child => parseNode(imageURLMap, components, child, node))
@@ -277,8 +286,38 @@ function parseNode(
   }
   return vdomNode;
 }
+
+export function getFile(fileId: string, token: string): Promise<Figma.File> {
+  const figmaClient = FigmaEndpoint.Client({
+    personalAccessToken: token
+  });
+  return new Promise(resolve => {
+    figmaClient.file(fileId).then(response => {
+      const data = JSON.stringify(response.data, undefined, "  ");
+      if (!fs.existsSync("data/")) {
+        fs.mkdirSync("data/");
+      }
+      fs.writeFileSync(`data/${fileId}.json`, data);
+      const fileNode: Figma.File = JSON.parse(data);
+      resolve(fileNode);
+    });
+  });
+}
+
+function download(uri, filename) {
+  return new Promise(resolve => {
+    request.head(uri, function(err, res) {
+      request(uri)
+        .pipe(fs.createWriteStream(filename))
+        .on("close", () => resolve(filename));
+    });
+  });
+}
+
+type ImageRecords = { [key: string]: string };
+
 function getImageIds(
-  imageIds: { jpg: Figma.Id[]; png: Figma.Id[]; svg: Figma.Id[] },
+  imageIds: { jpg: ImageRecords; png: ImageRecords; svg: ImageRecords },
   node: Figma.Node
 ) {
   if (Figma.isSubTree(node)) {
@@ -286,53 +325,110 @@ function getImageIds(
       getImageIds(imageIds, child);
     });
   } else if (Figma.isIcon(node)) {
-    imageIds[node.exportSettings[0].format.toLowerCase()].push(node.id);
+    imageIds[node.exportSettings[0].format.toLowerCase()][node.id] = node.name;
   }
+}
+
+export function getImagesByFile(
+  fileId: string,
+  token: string,
+  file: Figma.File,
+  byName: boolean = false
+): Promise<ImageURLMap> {
+  const figmaClient = FigmaEndpoint.Client({
+    personalAccessToken: token
+  });
+  return new Promise(resolve => {
+    const imageIds = { jpg: {}, png: {}, svg: {} };
+    getImageIds(imageIds, file.document);
+    let count = 1;
+    let imageURLMap = {};
+    function tryEnd(
+      newImageURLMap?: ImageURLMap,
+      format?: string,
+      imageRecords?: ImageRecords
+    ) {
+      count--;
+      if (newImageURLMap && format && imageRecords) {
+        if (byName) {
+          Object.keys(imageRecords).forEach(id => {
+            const name = imageRecords[id];
+            imageURLMap[name] = newImageURLMap[id];
+          });
+        } else {
+          imageURLMap = Object.assign(imageURLMap, newImageURLMap);
+        }
+      }
+      if (count === 0) {
+        // if (!fs.existsSync("images/")) {
+        //   fs.mkdirSync("images/");
+        // }
+        // Object.keys(imageURLMap).forEach(key => {
+        //   download(imageURLMap[key], `images/${key}.${format}`).then(fileName =>
+        //     console.log(`${fileName} is downloaded`)
+        //   );
+        // });
+        resolve(imageURLMap);
+      }
+    }
+    if (Object.keys(imageIds.jpg).length) {
+      count++;
+      figmaClient
+        .fileImages(fileId, { ids: Object.keys(imageIds.jpg), format: "jpg" })
+        .then(response => tryEnd(response.data.images, "jpg", imageIds.jpg));
+    }
+    if (Object.keys(imageIds.png).length) {
+      count++;
+      figmaClient
+        .fileImages(fileId, { ids: Object.keys(imageIds.png), format: "png" })
+        .then(response => tryEnd(response.data.images, "png", imageIds.png));
+    }
+    if (Object.keys(imageIds.svg).length) {
+      count++;
+      figmaClient
+        .fileImages(fileId, { ids: Object.keys(imageIds.svg), format: "svg" })
+        .then(response => tryEnd(response.data.images, "svg", imageIds.svg));
+    }
+    tryEnd();
+  });
+}
+
+export function getLibImagesByFileId(
+  fileId: string,
+  token: string
+): Promise<ImageURLMap> {
+  return getFile(fileId, token).then(libFile =>
+    getImagesByFile(fileId, token, libFile, true)
+  );
 }
 
 export function getVDOMByFileId(
   fileId: string,
   token: string
 ): Promise<VDOM.Node | null> {
-  const figmaClient = FigmaEndpoint.Client({
-    personalAccessToken: token
-  });
   return new Promise(resolve => {
-    figmaClient.file(fileId).then(response => {
-      const data = JSON.stringify(response.data, undefined, "  ");
-      const fileNode: Figma.File = JSON.parse(data);
-      const imageIds = { jpg: [], png: [], svg: [] };
-      getImageIds(imageIds, fileNode.document);
-      let count = 1;
-      let imageURLMap = {};
-      function tryEnd(newImageURLMap) {
-        count--;
-        imageURLMap = Object.assign(imageURLMap, newImageURLMap);
-        if (count === 0) {
-          resolve(
-            parseNode(imageURLMap, fileNode.components, fileNode.document)
-          );
-        }
-      }
-      if (imageIds.jpg.length) {
-        count++;
-        figmaClient
-          .fileImages(fileId, { ids: imageIds.jpg, format: "jpg" })
-          .then(response => tryEnd(response.data.images));
-      }
-      if (imageIds.png.length) {
-        count++;
-        figmaClient
-          .fileImages(fileId, { ids: imageIds.png, format: "png" })
-          .then(response => tryEnd(response.data.images));
-      }
-      if (imageIds.svg.length) {
-        count++;
-        figmaClient
-          .fileImages(fileId, { ids: imageIds.svg, format: "svg" })
-          .then(response => tryEnd(response.data.images));
-      }
-      tryEnd({});
-    });
+    const iconsFileId = "CnuhMOy5TfybQdwpmMkKrdIn";
+    const webFileId = "UCkOGVgsS5Dx5prMzvFnS9SB";
+    getLibImagesByFileId(iconsFileId, token)
+      .then(imageURLMap =>
+        getLibImagesByFileId(webFileId, token).then(newImageURLMap =>
+          Object.assign(imageURLMap, newImageURLMap)
+        )
+      )
+      .then(imageURLMap =>
+        getFile(fileId, token).then(file =>
+          getImagesByFile(fileId, token, file).then(newImageURLMap => {
+            Object.keys(file.components).forEach(id => {
+              const component = file.components[id];
+              const url = imageURLMap[component.name];
+              if (imageURLMap[component.name]) {
+                newImageURLMap[id] = url;
+              }
+            });
+            console.log(JSON.stringify(newImageURLMap, undefined, ' '));
+            resolve(parseNode(newImageURLMap, file.components, file.document));
+          })
+        )
+      );
   });
 }

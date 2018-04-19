@@ -1,6 +1,8 @@
 node_modules
 .idea
 projects
+data
+images
 *.puml
 *.svg
 *.js
