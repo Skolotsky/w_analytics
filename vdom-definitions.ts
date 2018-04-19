@@ -28,7 +28,13 @@ export namespace VDOM {
     | "border-radius";
   export type Style = Map<VDOM.StylePropertyName, string>;
   export type Classes = Set<ClassName>;
-  export type AttributeName = "data-name" | "data-type" | "data-component" | "data-component-id" | "data-component-name" | "src";
+  export type AttributeName =
+    | "data-name"
+    | "data-type"
+    | "data-component"
+    | "data-component-id"
+    | "data-component-name"
+    | "src";
   export interface Node {
     tag: TagName;
     classes: Classes;

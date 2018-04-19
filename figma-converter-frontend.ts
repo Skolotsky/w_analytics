@@ -282,22 +282,28 @@ function getImageIds(
   }
 }
 
-export function getVDOMByFileId(fileId: string, token: string): Promise<VDOM.Node | null> {
+export function getVDOMByFileId(
+  fileId: string,
+  token: string
+): Promise<VDOM.Node | null> {
   const figmaClient = FigmaEndpoint.Client({
     personalAccessToken: token
   });
-  return new Promise(resolve => {figmaClient.file(fileId).then(response => {
-    const data = JSON.stringify(response.data, undefined, "  ");
-    const fileNode: Figma.File = JSON.parse(data);
-    const imageIds = { jpg: [], png: [], svg: [] };
-    getImageIds(imageIds, fileNode.document);
+  return new Promise(resolve => {
+    figmaClient.file(fileId).then(response => {
+      const data = JSON.stringify(response.data, undefined, "  ");
+      const fileNode: Figma.File = JSON.parse(data);
+      const imageIds = { jpg: [], png: [], svg: [] };
+      getImageIds(imageIds, fileNode.document);
       let count = 1;
       let imageURLMap = {};
       function tryEnd(newImageURLMap) {
         count--;
         imageURLMap = Object.assign(imageURLMap, newImageURLMap);
         if (count === 0) {
-          resolve(parseNode(imageURLMap, fileNode.components, fileNode.document));
+          resolve(
+            parseNode(imageURLMap, fileNode.components, fileNode.document)
+          );
         }
       }
       if (imageIds.jpg.length) {
