@@ -2,38 +2,40 @@ export namespace VDOM {
   export type TagName = "DIV" | "SPAN" | "IMG";
   export type ClassName = "preserveRatio";
   export type StylePropertyName =
-    | "left"
-    | "right"
-    | "top"
-    | "bottom"
-    | "width"
-    | "height"
-    | "border"
-    | "border-top"
-    | "border-left"
-    | "position"
-    | "visibility"
     | "background-color"
+    | "border"
+    | "border-left"
+    | "border-radius"
+    | "border-top"
+    | "bottom"
+    | "box-shadow"
     | "color"
     | "font-family"
     | "font-size"
-    | "font-weight"
     | "font-style"
-    | "text-align"
-    | "vertical-align"
-    | "text-align"
+    | "font-weight"
+    | "height"
+    | "left"
     | "letter-spacing"
     | "line-height"
-    | "box-shadow"
-    | "border-radius";
+    | "position"
+    | "right"
+    | "text-align"
+    | "text-align"
+    | "top"
+    | "vertical-align"
+    | "visibility"
+    | "width"
+    | "display";
   export type Style = Map<VDOM.StylePropertyName, string>;
   export type Classes = Set<ClassName>;
   export type AttributeName =
-    | "data-name"
-    | "data-type"
     | "data-component"
     | "data-component-id"
     | "data-component-name"
+    | "data-name"
+    | "data-type"
+    | "id"
     | "src";
   export interface Node {
     tag: TagName;
@@ -52,4 +54,6 @@ export namespace VDOM {
       attributes: new Map()
     };
   }
+  export type NodeMap = Map<string, VDOM.Node>;
+  export type Document = { node: VDOM.Node; nodeMap: VDOM.NodeMap };
 }

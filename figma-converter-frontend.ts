@@ -83,6 +83,7 @@ function parseRECTANGLE(node: Figma.RECTANGLE, vdomNode: VDOM.Node) {
 }
 
 function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
+  vdomNode.attributes.set("data-name", "text");
   if (node.characterStyleOverrides.length) {
     const styleOverrideTable = {
       "0": node.style,
@@ -212,14 +213,15 @@ function parseEffected(node: Figma.Effected, vdomNode: VDOM.Node) {
     .join(", ");
   vdomNode.style.set("box-shadow", shadows);
 }
-
 function parseNode(
   imageURLMap: ImageURLMap,
   components: Figma.ComponentRefMap,
   node: Figma.Node,
+  nodeMap: VDOM.NodeMap,
   parent?: Figma.Node
 ): VDOM.Node | null {
   const vdomNode: VDOM.Node = VDOM.createNode();
+  vdomNode.attributes.set("id", node.id);
   vdomNode.attributes.set("data-name", node.name);
   vdomNode.attributes.set("data-type", node.type);
   if (Figma.isDOCUMENT(node)) {
@@ -279,7 +281,7 @@ function parseNode(
     parseEffected(node, vdomNode);
   }
   if (node.visible === false) {
-    vdomNode.style.set("visibility", "hidden");
+    vdomNode.style.set("display", "none");
   }
   if (libImage) {
     vdomNode.tag = "IMG";
@@ -287,7 +289,7 @@ function parseNode(
   } else if (Figma.isSubTree(node)) {
     vdomNode.children = node.children
       .reverse()
-      .map(child => parseNode(imageURLMap, components, child, node))
+      .map(child => parseNode(imageURLMap, components, child, nodeMap, node))
       .filter(vdomChild => !!vdomChild) as VDOM.Node[];
   }
   return vdomNode;
@@ -298,12 +300,18 @@ export function getFile(fileId: string, token: string): Promise<Figma.File> {
     personalAccessToken: token
   });
   return new Promise(resolve => {
+    const filePath = `data/${fileId}.json`;
+    if (process.argv.indexOf("-c") > 0 && fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath).toString();
+      const fileNode: Figma.File = JSON.parse(data);
+      resolve(fileNode);
+    }
     figmaClient.file(fileId).then(response => {
       const data = JSON.stringify(response.data, undefined, "  ");
       if (!fs.existsSync("data/")) {
         fs.mkdirSync("data/");
       }
-      fs.writeFileSync(`data/${fileId}.json`, data);
+      fs.writeFileSync(filePath, data);
       const fileNode: Figma.File = JSON.parse(data);
       resolve(fileNode);
     });
@@ -369,23 +377,27 @@ export function getImagesByFile(
         resolve(imageURLMap);
       }
     }
-    if (Object.keys(imageIds.jpg).length) {
-      count++;
-      figmaClient
-        .fileImages(fileId, { ids: Object.keys(imageIds.jpg), format: "jpg" })
-        .then(response => tryEnd(response.data.images, "jpg", imageIds.jpg));
-    }
-    if (Object.keys(imageIds.png).length) {
-      count++;
-      figmaClient
-        .fileImages(fileId, { ids: Object.keys(imageIds.png), format: "png" })
-        .then(response => tryEnd(response.data.images, "png", imageIds.png));
-    }
-    if (Object.keys(imageIds.svg).length) {
-      count++;
-      figmaClient
-        .fileImages(fileId, { ids: Object.keys(imageIds.svg), format: "svg" })
-        .then(response => tryEnd(response.data.images, "svg", imageIds.svg));
+    if (process.argv.indexOf("-c") > 0) {
+      Object.keys(imageIds.svg).forEach(id => (imageURLMap[id] = ""));
+    } else {
+      if (Object.keys(imageIds.jpg).length) {
+        count++;
+        figmaClient
+          .fileImages(fileId, { ids: Object.keys(imageIds.jpg), format: "jpg" })
+          .then(response => tryEnd(response.data.images, "jpg", imageIds.jpg));
+      }
+      if (Object.keys(imageIds.png).length) {
+        count++;
+        figmaClient
+          .fileImages(fileId, { ids: Object.keys(imageIds.png), format: "png" })
+          .then(response => tryEnd(response.data.images, "png", imageIds.png));
+      }
+      if (Object.keys(imageIds.svg).length) {
+        count++;
+        figmaClient
+          .fileImages(fileId, { ids: Object.keys(imageIds.svg), format: "svg" })
+          .then(response => tryEnd(response.data.images, "svg", imageIds.svg));
+      }
     }
     tryEnd();
   });
@@ -408,10 +420,13 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
     fs.mkdirSync(`images/${fileId}`);
   }
   Object.keys(imageURLMap).forEach(key => {
-    const fileName = `images/${fileId}/${key.replace(":", "_")}.svg`;
-    download(imageURLMap[key], fileName).then(fileName =>
-      console.log(`${fileName} is downloaded`)
-    );
+    const name = key.replace(/:/g, "-").replace(/;/g, "_");
+    const fileName = `images/${fileId}/${name}.svg`;
+    if (imageURLMap[key]) {
+      download(imageURLMap[key], fileName).then(fileName =>
+        console.log(`${fileName} is downloaded`)
+      );
+    }
     imageURLMap[key] = fileName;
   });
 }
@@ -419,13 +434,22 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
 export function getVDOMByFileId(
   fileId: string,
   token: string
-): Promise<VDOM.Node | null> {
+): Promise<VDOM.Document> {
   return new Promise(resolve => {
     getFile(fileId, token).then(file =>
       getImagesByFile(fileId, token, file).then(imageURLMap => {
         downloadImages(fileId, imageURLMap);
         console.log(JSON.stringify(imageURLMap, undefined, " "));
-        resolve(parseNode(imageURLMap, file.components, file.document));
+        const nodeMap: VDOM.NodeMap = new Map();
+        resolve({
+          node: parseNode(
+            imageURLMap,
+            file.components,
+            file.document,
+            nodeMap
+          ) as VDOM.Node,
+          nodeMap
+        });
       })
     );
     // const iconsFileId = "CnuhMOy5TfybQdwpmMkKrdIn";
