@@ -132,6 +132,7 @@ function parseAbsoluteBoxBounded(
   vdomNode: VDOM.Node,
   parent?: Figma.Node
 ) {
+  vdomNode.style.set("position", "absolute");
   let parentX = 0;
   let parentY = 0;
   let parentW = Infinity;
@@ -252,7 +253,6 @@ function parseNode(
     }
   }
 
-  vdomNode.style.set("position", "absolute");
   if (Figma.isAbsoluteBoxBounded(node)) {
     parseAbsoluteBoxBounded(node, vdomNode, parent);
   }
