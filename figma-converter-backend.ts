@@ -1,14 +1,19 @@
 import { VDOM } from "./vdom-definitions";
 export type NodePath = { node: VDOM.Node; parentPath?: NodePath };
 
+export type Replacer = (
+  node: VDOM.Node,
+  parentPath: NodePath,
+  replacer: Replacer
+) => VDOM.Node | string;
 export function printVDOMNode(
   node: VDOM.Node,
-  replacer?: (node: VDOM.Node, parentPath: NodePath) => VDOM.Node | string,
+  replacer?: Replacer,
   path?: NodePath
 ): string {
   const newPath: NodePath = { node: node, parentPath: path };
   if (replacer) {
-    const result = replacer(node, newPath);
+    const result = replacer(node, newPath, replacer);
     if (typeof result === "string") {
       return result;
     }

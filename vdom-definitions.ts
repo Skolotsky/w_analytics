@@ -34,7 +34,9 @@ export namespace VDOM {
     | "margin-left"
     | "margin-right"
     | "margin-top"
-    | "margin-bottom";
+    | "margin-bottom"
+    | "padding-top"
+    | "padding-left";
   export type Style = Map<VDOM.StylePropertyName, string>;
   export type Classes = Set<ClassName>;
   export type AttributeName = string;

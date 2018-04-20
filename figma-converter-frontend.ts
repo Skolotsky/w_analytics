@@ -34,8 +34,16 @@ function toVerticalAlign(textAlignVertical: Figma.TextAlignVertical) {
   }
 }
 
+function toFontFamily(ff: string) {
+  switch (ff) {
+    case "Stratos LC":
+      return "Stratos ";
+  }
+  return ff;
+}
+
 function toStyle(typeStyle: Figma.TypeStyle, style: VDOM.Style) {
-  style.set("font-family", typeStyle.fontFamily);
+  style.set("font-family", toFontFamily(typeStyle.fontFamily));
   if (typeStyle.italic) {
     style.set("font-style", "italic");
   }
@@ -148,26 +156,36 @@ function parseAbsoluteBoxBounded(
   let parentW = Infinity;
   let parentH = Infinity;
   if (parent && Figma.isAbsoluteBoxBounded(parent)) {
+    if (Figma.isGROUP(node)) {
+      vdomNode.style.set("left", "0");
+      vdomNode.style.set("right", "0");
+      vdomNode.style.set("top", "0");
+      vdomNode.style.set("bottom", "0");
+      node.absoluteBoundingBox = parent.absoluteBoundingBox;
+    }
     parentX = parent.absoluteBoundingBox.x;
     parentY = parent.absoluteBoundingBox.y;
     parentW = parent.absoluteBoundingBox.width;
     parentH = parent.absoluteBoundingBox.height;
   }
+  const w = node.absoluteBoundingBox.width;
+  const h = node.absoluteBoundingBox.height;
   const xl = node.absoluteBoundingBox.x - parentX;
-  let xr = xl + node.absoluteBoundingBox.width;
+  let xr = parentW - (xl + w);
   const yt = node.absoluteBoundingBox.y - parentY;
-  let yb = yt + node.absoluteBoundingBox.height;
-  const w = xr - xl;
-  const h = yb - yt;
+  let yb = parentH - (yt + h);
   const horizontal = node.constraints.horizontal;
   const vertical = node.constraints.vertical;
 
   vdomNode.box = { xl, xr, yt, yb, w, h };
+  if (Figma.isGROUP(node)) {
+    return 0;
+  }
   if (horizontal === "LEFT" || horizontal === "LEFT_RIGHT") {
     vdomNode.style.set("left", `${xl}px`);
   }
   if (horizontal === "RIGHT" || horizontal === "LEFT_RIGHT") {
-    vdomNode.style.set("right", `${parentW - xr}px`);
+    vdomNode.style.set("right", `${xr}px`);
   }
   if (horizontal === "CENTER") {
     const offset = Math.ceil(w / 2);
@@ -175,9 +193,12 @@ function parseAbsoluteBoxBounded(
     vdomNode.style.set("right", `calc(50% - ${offset}px)`);
   }
   if (horizontal === "SCALE") {
-    const offset = Math.ceil((parentW - w) / 2 * 100 / parentW);
-    vdomNode.style.set("left", `${offset}%`);
-    vdomNode.style.set("right", `${offset}%`);
+    const lOffset = Math.ceil(xl * 100 / parentW);
+    const rOffset = Math.ceil(xr * 100 / parentW);
+    const wOffset = Math.ceil(w * 100 / parentW);
+    vdomNode.style.set("left", `${lOffset}%`);
+    vdomNode.style.set("right", `${rOffset}%`);
+    vdomNode.style.set("width", `${wOffset}%`);
   }
   if (horizontal === "LEFT" || horizontal === "RIGHT") {
     vdomNode.style.set("width", `${w}px`);
@@ -186,7 +207,7 @@ function parseAbsoluteBoxBounded(
     vdomNode.style.set("top", `${yt}px`);
   }
   if (vertical === "BOTTOM" || vertical === "TOP_BOTTOM") {
-    vdomNode.style.set("bottom", `${parentH - yb}px`);
+    vdomNode.style.set("bottom", `${yb}px`);
   }
   if (vertical === "CENTER") {
     const offset = Math.ceil(h / 2);
@@ -194,9 +215,12 @@ function parseAbsoluteBoxBounded(
     vdomNode.style.set("bottom", `calc(50% - ${offset}px)`);
   }
   if (vertical === "SCALE") {
-    const offset = Math.ceil((parentH - h) / 2 * 100 / parentH);
-    vdomNode.style.set("top", `${offset}%`);
-    vdomNode.style.set("bottom", `${offset}%`);
+    const tOffset = Math.ceil(yt * 100 / parentH);
+    const bOffset = Math.ceil(yb * 100 / parentH);
+    const hOffset = Math.ceil(h * 100 / parentH);
+    vdomNode.style.set("top", `${tOffset}%`);
+    vdomNode.style.set("bottom", `${bOffset}%`);
+    vdomNode.style.set("height", `${hOffset}%`);
   }
   if (vertical === "TOP" || vertical === "BOTTOM") {
     vdomNode.style.set("height", `${h}px`);
@@ -214,7 +238,9 @@ function parseEffected(node: Figma.Effected, vdomNode: VDOM.Node) {
         }px ${toCSSColor(effect.color)}`
     )
     .join(", ");
-  vdomNode.style.set("box-shadow", shadows);
+  if (shadows) {
+    vdomNode.style.set("box-shadow", shadows);
+  }
 }
 function parseNode(
   imageURLMap: ImageURLMap,
