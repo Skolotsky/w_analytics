@@ -3,6 +3,7 @@ import * as request from "request";
 import * as FigmaEndpoint from "figma-js";
 import { Figma } from "./figma-definitions";
 import { VDOM } from "./vdom-definitions";
+import * as path from "path";
 
 function toCSSColor(color: Figma.Color) {
   const r = Math.ceil(color.r * 256);
@@ -160,6 +161,8 @@ function parseAbsoluteBoxBounded(
   const h = yb - yt;
   const horizontal = node.constraints.horizontal;
   const vertical = node.constraints.vertical;
+
+  vdomNode.box = { xl, xr, yt, yb, w, h };
   if (horizontal === "LEFT" || horizontal === "LEFT_RIGHT") {
     vdomNode.style.set("left", `${xl}px`);
   }
@@ -237,12 +240,16 @@ function parseNode(
   if (Figma.isBOOLEAN_OPERATION(node)) {
   }
   if (Figma.isSTAR(node)) {
+    return null;
   }
   if (Figma.isLINE(node)) {
+    return null;
   }
   if (Figma.isELLIPSE(node)) {
+    return null;
   }
   if (Figma.isREGULAR_POLYGON(node)) {
+    return null;
   }
   if (Figma.isRECTANGLE(node)) {
     parseRECTANGLE(node, vdomNode);
@@ -403,27 +410,21 @@ export function getImagesByFile(
   });
 }
 
-// export function getLibImagesByFileId(
-//   fileId: string,
-//   token: string
-// ): Promise<ImageURLMap> {
-//   return getFile(fileId, token).then(libFile =>
-//     getImagesByFile(fileId, token, libFile, true)
-//   );
-// }
-
+const IMAGES_PATH = "img";
+let index = process.argv.indexOf("-p");
+const DOWNLOAD_PATH = index > 0 ? path.resolve(process.argv[index + 1]) : "";
 export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
-  if (!fs.existsSync("images/")) {
-    fs.mkdirSync("images/");
+  if (!fs.existsSync(IMAGES_PATH)) {
+    fs.mkdirSync(IMAGES_PATH);
   }
-  if (!fs.existsSync(`images/${fileId}`)) {
-    fs.mkdirSync(`images/${fileId}`);
+  if (!fs.existsSync(`${IMAGES_PATH}/${fileId}`)) {
+    fs.mkdirSync(`${IMAGES_PATH}/${fileId}`);
   }
   Object.keys(imageURLMap).forEach(key => {
     const name = key.replace(/:/g, "-").replace(/;/g, "_");
-    const fileName = `images/${fileId}/${name}.svg`;
+    const fileName = `${IMAGES_PATH}/${fileId}/${name}.svg`;
     if (imageURLMap[key]) {
-      download(imageURLMap[key], fileName).then(fileName =>
+      download(imageURLMap[key], DOWNLOAD_PATH + "/" + fileName).then(fileName =>
         console.log(`${fileName} is downloaded`)
       );
     }
@@ -452,29 +453,5 @@ export function getVDOMByFileId(
         });
       })
     );
-    // const iconsFileId = "CnuhMOy5TfybQdwpmMkKrdIn";
-    // const webFileId = "UCkOGVgsS5Dx5prMzvFnS9SB";
-    // getLibImagesByFileId(iconsFileId, token)
-    //   .then(imageURLMap =>
-    //     getLibImagesByFileId(webFileId, token).then(newImageURLMap =>
-    //       Object.assign(imageURLMap, newImageURLMap)
-    //     )
-    //   )
-    //   .then(imageURLMap =>
-    //     getFile(fileId, token).then(file =>
-    //       getImagesByFile(fileId, token, file).then(newImageURLMap => {
-    //         Object.keys(file.components).forEach(id => {
-    //           const component = file.components[id];
-    //           const url = imageURLMap[component.name];
-    //           if (imageURLMap[component.name]) {
-    //             newImageURLMap[id] = url;
-    //           }
-    //         });
-    //         downloadImages(imageURLMap);
-    //         console.log(JSON.stringify(newImageURLMap, undefined, " "));
-    //         resolve(parseNode(newImageURLMap, file.components, file.document));
-    //       })
-    //     )
-    //   );
   });
 }

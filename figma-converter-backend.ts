@@ -1,17 +1,23 @@
 import { VDOM } from "./vdom-definitions";
+export type NodePath = { node: VDOM.Node; parentPath?: NodePath };
 
 export function printVDOMNode(
-  node: VDOM.Node | string,
-  replacer?: (node: VDOM.Node | string) => VDOM.Node | string
+  node: VDOM.Node,
+  replacer?: (node: VDOM.Node, parentPath: NodePath) => VDOM.Node | string,
+  path?: NodePath
 ): string {
+  const newPath: NodePath = { node: node, parentPath: path };
   if (replacer) {
-    node = replacer(node);
-  }
-  if (typeof node === "string") {
-    return node;
+    const result = replacer(node, newPath);
+    if (typeof result === "string") {
+      return result;
+    }
+    node = result;
   }
   let childrenHTML = node.children
-    ? node.children.map(child => printVDOMNode(child, replacer)).join("")
+    ? node.children
+        .map(child => printVDOMNode(child, replacer, newPath))
+        .join("")
     : "";
   let text = node.text || "";
   let style = node.style.size
@@ -25,8 +31,10 @@ export function printVDOMNode(
   let classes = node.classes.size
     ? ` class="${[...node.classes.keys()].join(" ")}"`
     : "";
+  //let attributes = '';
   let attributes = node.attributes.size
     ? ` ${([...node.attributes.entries()] as [VDOM.AttributeName, string][])
+        //.filter(([name]) => name === "src")
         .map(([name, value]) => `${name}="${value}"`)
         .join(" ")}`
     : "";
@@ -38,7 +46,7 @@ export function printVDOMNode(
 
 export function printVDOM(
   document: VDOM.Document,
-  replacer?: () => VDOM.Node | string
+  replacer?: (node: VDOM.Node, parentPath: NodePath) => VDOM.Node | string
 ): string {
   return printVDOMNode(document.node, replacer);
 }

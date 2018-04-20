@@ -1,6 +1,8 @@
+import {Tag} from "nodegit";
+
 export namespace VDOM {
   export type TagName = "DIV" | "SPAN" | "IMG";
-  export type ClassName = "preserveRatio";
+  export type ClassName = string;
   export type StylePropertyName =
     | "background-color"
     | "border"
@@ -10,6 +12,7 @@ export namespace VDOM {
     | "bottom"
     | "box-shadow"
     | "color"
+    | "display"
     | "font-family"
     | "font-size"
     | "font-style"
@@ -18,6 +21,8 @@ export namespace VDOM {
     | "left"
     | "letter-spacing"
     | "line-height"
+    | "overflow"
+    | "overflow-x"
     | "position"
     | "right"
     | "text-align"
@@ -26,17 +31,13 @@ export namespace VDOM {
     | "vertical-align"
     | "visibility"
     | "width"
-    | "display";
+    | "margin-left"
+    | "margin-right"
+    | "margin-top"
+    | "margin-bottom";
   export type Style = Map<VDOM.StylePropertyName, string>;
   export type Classes = Set<ClassName>;
-  export type AttributeName =
-    | "data-component"
-    | "data-component-id"
-    | "data-component-name"
-    | "data-name"
-    | "data-type"
-    | "id"
-    | "src";
+  export type AttributeName = string;
   export interface Node {
     tag: TagName;
     classes: Classes;
@@ -44,11 +45,19 @@ export namespace VDOM {
     children?: Node[];
     text?: string;
     attributes: Map<AttributeName, string>;
+    box?: {
+      xl: number;
+      xr: number;
+      yt: number;
+      yb: number;
+      w: number;
+      h: number;
+    };
   }
 
-  export function createNode(): Node {
+  export function createNode(tag: TagName = "DIV"): Node {
     return {
-      tag: "DIV",
+      tag: tag,
       classes: new Set(),
       style: new Map(),
       attributes: new Map()
