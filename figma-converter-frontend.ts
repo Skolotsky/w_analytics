@@ -124,12 +124,11 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
       });
     }
     vdomNode.children = textParts.map(textPart => {
-      const vdomNode = VDOM.createNode();
+      const vdomNode = VDOM.createNode("SPAN");
       if (textPart.style && textPart.style !== node.style) {
         toStyle(textPart.style, vdomNode.style);
       }
       vdomNode.children = [escapeHTML(textPart.text)];
-      vdomNode.tag = "SPAN";
       return vdomNode;
     });
   } else {

@@ -34,53 +34,71 @@ function isNode(
   return !!node && !isString(node);
 }
 
-function processMobileSectionGroups(node: VDOM.Node, offset: number = 0): {offset: number, paddingBottom: number} {
-  node.style.set("position", "relative");
-  node.style.delete("bottom");
+function processMobileSectionGroups(
+  node: VDOM.Node,
+  offset: number = 0
+): { offset: number; paddingBottom: number } {
+  if (node.box) {
+    resetPosition(node);
+    node.style.delete("width");
+    node.style.delete("height");
+    node.style.set("position", "relative");
+    node.style.set("padding-right", `${node.box.xr}px`);
+    node.style.set("padding-left", `${node.box.xl}px`);
+  }
   let paddingBottom = node.box ? node.box.h : 0;
   if (node.children) {
     node.children.forEach(child => {
       if (isNode(child) && child.box) {
         const nodeType = child.attributes.get("data-type");
         if (nodeType === "GROUP") {
-          //child.attributes.set("data-type", "FRAME");
           let result = processMobileSectionGroups(child, offset);
           offset = result.offset;
           paddingBottom = Math.min(paddingBottom, result.paddingBottom);
-        }
-        else {
+        } else {
           resetPosition(child);
           child.style.set("position", "relative");
-          child.style.set("padding-left", `${child.box.xl}px`);
-          child.style.set("padding-right", `${child.box.xr}px`);
+          child.style.set("margin-left", `${child.box.xl}px`);
+          child.style.set("margin-right", `${child.box.xr}px`);
           child.style.set("padding-top", `${child.box.yt - offset}px`);
           paddingBottom = Math.min(paddingBottom, child.box.yb);
           child.style.delete("height");
-          if (nodeType !== 'TEXT') {
-            child.style.set("width", `${child.box.xl + child.box.w + child.box.xr}px`);
-            child.style.set("height", `${child.box.yt - offset + child.box.h}px`);
+          if (nodeType !== "TEXT") {
+            child.style.set(
+              "width",
+              `${child.box.w}px`
+            );
+            child.style.set(
+              "height",
+              `${child.box.yt - offset + child.box.h}px`
+            );
           }
           offset = child.box.yt + child.box.h;
         }
       }
     });
   }
-  return {offset, paddingBottom};
+  return { offset, paddingBottom };
 }
 
 function processSection(node: VDOM.Node, breakpoint: string) {
   resetPosition(node);
   node.style.set("position", "relative");
-  const nodeName= node.attributes.get("data-name");
-  if (breakpoint == "Mobile" && nodeName !== 'Open Positions' && nodeName !== 'Gallery') {
+  const nodeName = node.attributes.get("data-name");
+  if (
+    breakpoint == "Mobile" &&
+    nodeName !== "Open Positions" &&
+    nodeName !== "Gallery"
+  ) {
     node.style.delete("height");
     if (node.children) {
       const content = node.children.find(
-        child => isNode(child) && child.attributes.get("data-name") === "Content"
+        child =>
+          isNode(child) && child.attributes.get("data-name") === "Content"
       );
       if (isNode(content)) {
-        let {paddingBottom} = processMobileSectionGroups(content);
-        node.style.set("padding-bottom", `${paddingBottom}px`)
+        let { paddingBottom } = processMobileSectionGroups(content);
+        node.style.set("padding-bottom", `${paddingBottom}px`);
       }
     }
   }
@@ -156,11 +174,10 @@ const replacers = {
         "<% end %>"
       ];
     }
-    if (node.tag === "IMG") {
-      const src = node.attributes.get("src") || "";
-      node.attributes.set("src", `<%= img_url_prefix %>/${src}`);
+    if (nodeName === "Position Card") {
+      return node;
     }
-    return node;
+    return replacers.careers(state, node, path, replacer);
   },
   careers: (
     state: { css: string; breakpoint: string; lang: string },
@@ -185,6 +202,13 @@ const replacers = {
           },
           replacer
         );
+      }
+      case "Gallery": {
+        node.children = ['<%= erb :"dynamic/careers/gallery" %>'];
+        break;
+      }
+      case "Tooltip": {
+        return "";
       }
       case "Tooltip": {
         return "";
