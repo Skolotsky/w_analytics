@@ -1,7 +1,7 @@
 import { Tag } from "nodegit";
 
 export namespace VDOM {
-  export type TagName = "DIV" | "SPAN" | "IMG";
+  export type TagName = "DIV" | "SPAN" | "IMG" | "A";
   export type ClassName = string;
   export type StylePropertyName =
     | "background-color"
@@ -26,12 +26,13 @@ export namespace VDOM {
     | "margin-left"
     | "margin-right"
     | "margin-top"
+    | "opacity"
     | "overflow"
     | "overflow-x"
+    | "padding-bottom"
     | "padding-left"
     | "padding-right"
     | "padding-top"
-    | "padding-bottom"
     | "position"
     | "right"
     | "text-align"

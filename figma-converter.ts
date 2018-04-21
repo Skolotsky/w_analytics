@@ -209,8 +209,12 @@ const replacers = {
         node.children = ['<%= erb :"dynamic/careers/gallery" %>'];
         break;
       }
-      case "Tooltip": {
-        return "";
+      case "Show Positions Link": {
+        node.style.set("display", "block");
+        node.tag = "A";
+        node.attributes.set("href", `#Cards_${state.breakpoint}`);
+        node.classes.add("show-positions-link");
+        break;
       }
       case "Tooltip": {
         return "";
@@ -295,6 +299,7 @@ const replacers = {
       }
       case "Cards": {
         node.classes.add("cards");
+        node.attributes.set("id", `Cards_${state.breakpoint}`);
         node.attributes.set("data-type", "FRAME");
         if (node.box) {
           node.style.set("position", "relative");
@@ -374,6 +379,9 @@ const replacers = {
 function initState(lang: string) {
   return {
     css: `
+.show-positions-link:hover * {
+  opacity: 1!important
+}
 .cards:after {
   content: '';
   display: block;
@@ -390,6 +398,9 @@ function initState(lang: string) {
 .position-card {
   margin-bottom: ${CARD_MARGIN}px;
   cursor: pointer;
+}
+.position-card:hover {
+  background-color: #F5F5F5!important
 }
 .breakpoint-desktop .position-card,
 .breakpoint-tablet .position-card {

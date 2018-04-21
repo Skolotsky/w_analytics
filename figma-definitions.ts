@@ -121,7 +121,7 @@ export namespace Figma {
   export interface Paint {
     type: PaintType;
     visible: Boolean;
-    opacity: Number;
+    opacity?: Number;
     color?: Color;
     gradientHandlePositions: Vector[];
     gradientStops: ColorStop[];

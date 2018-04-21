@@ -66,6 +66,9 @@ function parseRECTANGLE(node: Figma.RECTANGLE, vdomNode: VDOM.Node) {
   if (node.fills.length > 0) {
     const fill = node.fills[0];
     if (fill && fill.color) {
+      if (fill.opacity !== undefined) {
+        vdomNode.style.set("opacity", `${fill.opacity}`);
+      }
       if (
         node.absoluteBoundingBox.height > 1 &&
         node.absoluteBoundingBox.width > 1
@@ -138,9 +141,12 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
     toStyle(node.style, vdomNode.style);
   }
   if (node.fills.length > 0) {
-    const textFill = node.fills[0];
-    if (textFill && textFill.color) {
-      vdomNode.style.set("color", toCSSColor(textFill.color));
+    const fill = node.fills[0];
+    if (fill && fill.color) {
+      if (fill.opacity !== undefined) {
+        vdomNode.style.set("opacity", `${fill.opacity}`);
+      }
+      vdomNode.style.set("color", toCSSColor(fill.color));
     }
   }
 }
@@ -482,7 +488,9 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
   const imgDir = `${DOWNLOAD_PATH}/${IMAGES_PATH}/${fileId}`;
   if (process.argv.indexOf("-c") < 0) {
     if (fs.existsSync(imgDir)) {
-      fs.readdirSync(imgDir).forEach(file => fs.unlinkSync(`${imgDir}/${file}`));
+      fs
+        .readdirSync(imgDir)
+        .forEach(file => fs.unlinkSync(`${imgDir}/${file}`));
       fs.rmdirSync(imgDir);
     }
     fs.mkdirSync(imgDir);
