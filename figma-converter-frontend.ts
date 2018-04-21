@@ -254,13 +254,17 @@ function parseChildren(
   children
     .reverse()
     .sort((childA, childB) => {
+      let result = 0;
       if (
         Figma.isAbsoluteBoxBounded(childA) &&
         Figma.isAbsoluteBoxBounded(childB)
       ) {
-        return childA.absoluteBoundingBox.y - childB.absoluteBoundingBox.y;
+        result = childA.absoluteBoundingBox.y - childB.absoluteBoundingBox.y;
+        if (result === 0) {
+          result = childA.absoluteBoundingBox.x - childB.absoluteBoundingBox.x;
+        }
       }
-      return 0;
+      return result;
     })
     .forEach(child => {
       const result = parseNode(
