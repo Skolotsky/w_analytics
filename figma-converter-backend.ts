@@ -25,28 +25,30 @@ export function printVDOMNode(
         .join("")
     : "";
   let text = node.text || "";
-  let style = node.style.size
-    ? ` style="${([...node.style.entries()] as [
-        VDOM.StylePropertyName,
-        string
-      ][])
-        .map(([name, value]) => `${name}: ${value}`)
-        .join(";")}"`
-    : "";
-  let classes = node.classes.size
-    ? ` class="${[...node.classes.keys()].join(" ")}"`
-    : "";
-  //let attributes = '';
-  let attributes = node.attributes.size
-    ? ` ${([...node.attributes.entries()] as [VDOM.AttributeName, string][])
-        //.filter(([name]) => name === "src")
-        .map(([name, value]) => `${name}="${value}"`)
-        .join(" ")}`
-    : "";
-
-  return `<${node.tag}${attributes}${classes}${style}>${text}${childrenHTML}</${
-    node.tag
-  }>`;
+  if (node.attributes.get("data-type") !== "GROUP") {
+    let style = node.style.size
+      ? ` style="${([...node.style.entries()] as [
+          VDOM.StylePropertyName,
+          string
+        ][])
+          .map(([name, value]) => `${name}: ${value}`)
+          .join(";")}"`
+      : "";
+    let classes = node.classes.size
+      ? ` class="${[...node.classes.keys()].join(" ")}"`
+      : "";
+    //let attributes = '';
+    let attributes = node.attributes.size
+      ? ` ${([...node.attributes.entries()] as [VDOM.AttributeName, string][])
+          //.filter(([name]) => name === "src")
+          .map(([name, value]) => `${name}="${value}"`)
+          .join(" ")}`
+      : "";
+    return `<${
+      node.tag
+    }${attributes}${classes}${style}>${text}${childrenHTML}</${node.tag}>`;
+  }
+  return `${text}${childrenHTML}`;
 }
 
 export function printVDOM(

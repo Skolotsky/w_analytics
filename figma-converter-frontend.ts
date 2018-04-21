@@ -4,6 +4,8 @@ import * as FigmaEndpoint from "figma-js";
 import { Figma } from "./figma-definitions";
 import { VDOM } from "./vdom-definitions";
 import * as path from "path";
+import isAbsoluteBoxBounded = Figma.isAbsoluteBoxBounded;
+import AbsoluteBoxBounded = Figma.AbsoluteBoxBounded;
 
 function toCSSColor(color: Figma.Color) {
   const r = Math.ceil(color.r * 256);
@@ -148,25 +150,24 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
 function parseAbsoluteBoxBounded(
   node: Figma.AbsoluteBoxBounded,
   vdomNode: VDOM.Node,
-  parent?: Figma.Node
-) {
+  parentBox?: Figma.Rectangle
+): Figma.Rectangle | null {
   vdomNode.style.set("position", "absolute");
   let parentX = 0;
   let parentY = 0;
   let parentW = Infinity;
   let parentH = Infinity;
-  if (parent && Figma.isAbsoluteBoxBounded(parent)) {
+  if (parentBox) {
     if (Figma.isGROUP(node)) {
       vdomNode.style.set("left", "0");
       vdomNode.style.set("right", "0");
       vdomNode.style.set("top", "0");
       vdomNode.style.set("bottom", "0");
-      node.absoluteBoundingBox = parent.absoluteBoundingBox;
     }
-    parentX = parent.absoluteBoundingBox.x;
-    parentY = parent.absoluteBoundingBox.y;
-    parentW = parent.absoluteBoundingBox.width;
-    parentH = parent.absoluteBoundingBox.height;
+    parentX = parentBox.x;
+    parentY = parentBox.y;
+    parentW = parentBox.width;
+    parentH = parentBox.height;
   }
   const w = node.absoluteBoundingBox.width;
   const h = node.absoluteBoundingBox.height;
@@ -179,7 +180,7 @@ function parseAbsoluteBoxBounded(
 
   vdomNode.box = { xl, xr, yt, yb, w, h };
   if (Figma.isGROUP(node)) {
-    return 0;
+    return parentBox || null;
   }
   if (horizontal === "LEFT" || horizontal === "LEFT_RIGHT") {
     vdomNode.style.set("left", `${xl}px`);
@@ -225,6 +226,7 @@ function parseAbsoluteBoxBounded(
   if (vertical === "TOP" || vertical === "BOTTOM") {
     vdomNode.style.set("height", `${h}px`);
   }
+  return node.absoluteBoundingBox;
 }
 
 function parseEffected(node: Figma.Effected, vdomNode: VDOM.Node) {
@@ -242,28 +244,55 @@ function parseEffected(node: Figma.Effected, vdomNode: VDOM.Node) {
     vdomNode.style.set("box-shadow", shadows);
   }
 }
+
+function parseChildren(
+  children: Figma.Node[],
+  imageURLMap: ImageURLMap,
+  components: Figma.ComponentRefMap,
+  nodeMap: VDOM.NodeMap,
+  parentBox?: Figma.Rectangle
+): VDOM.Node[] {
+  let vdomChildren: VDOM.Node[] = [];
+  children
+    .reverse()
+    .sort((childA, childB) => {
+      if (isAbsoluteBoxBounded(childA) && isAbsoluteBoxBounded(childB)) {
+        return childA.absoluteBoundingBox.y - childB.absoluteBoundingBox.y;
+      }
+      return 0;
+    })
+    .forEach(child => {
+      const result = parseNode(
+        imageURLMap,
+        components,
+        child,
+        nodeMap,
+        parentBox
+      );
+      if (result) {
+        if (result instanceof Array) {
+          vdomChildren = vdomChildren.concat(result);
+        } else {
+          vdomChildren.push(result);
+        }
+      }
+    });
+  return vdomChildren;
+}
+
 function parseNode(
   imageURLMap: ImageURLMap,
   components: Figma.ComponentRefMap,
   node: Figma.Node,
   nodeMap: VDOM.NodeMap,
-  parent?: Figma.Node
-): VDOM.Node | null {
+  parentBox?: Figma.Rectangle
+): VDOM.Node | VDOM.Node[] | null {
   const vdomNode: VDOM.Node = VDOM.createNode();
   vdomNode.attributes.set("id", node.id);
   vdomNode.attributes.set("data-name", node.name);
   vdomNode.attributes.set("data-type", node.type);
-  if (Figma.isDOCUMENT(node)) {
-  }
-  if (Figma.isCANVAS(node)) {
-  }
-  if (Figma.isFRAME(node)) {
-  }
-  if (Figma.isGROUP(node)) {
-  }
-  if (Figma.isVECTOR(node)) {
-  }
   if (Figma.isBOOLEAN_OPERATION(node)) {
+    return null;
   }
   if (Figma.isSTAR(node)) {
     return null;
@@ -282,8 +311,6 @@ function parseNode(
   }
   if (Figma.isTEXT(node)) {
     parseTEXT(node, vdomNode);
-  }
-  if (Figma.isSLICE(node)) {
   }
   if (Figma.isCOMPONENT(node)) {
     vdomNode.attributes.set("data-component", node.id);
@@ -304,8 +331,9 @@ function parseNode(
   }
 
   vdomNode.style.set("position", "absolute");
+  let nodeBox;
   if (Figma.isAbsoluteBoxBounded(node)) {
-    parseAbsoluteBoxBounded(node, vdomNode, parent);
+    nodeBox = parseAbsoluteBoxBounded(node, vdomNode, parentBox);
   }
   if (Figma.isBackgroundColored(node)) {
     vdomNode.style.set("background-color", toCSSColor(node.backgroundColor));
@@ -320,10 +348,13 @@ function parseNode(
     vdomNode.tag = "IMG";
     vdomNode.attributes.set("src", libImage);
   } else if (Figma.isSubTree(node)) {
-    vdomNode.children = node.children
-      .reverse()
-      .map(child => parseNode(imageURLMap, components, child, nodeMap, node))
-      .filter(vdomChild => !!vdomChild) as VDOM.Node[];
+    vdomNode.children = parseChildren(
+      node.children,
+      imageURLMap,
+      components,
+      nodeMap,
+      nodeBox
+    );
   }
   return vdomNode;
 }
@@ -450,8 +481,8 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
     const name = key.replace(/:/g, "-").replace(/;/g, "_");
     const fileName = `${IMAGES_PATH}/${fileId}/${name}.svg`;
     if (imageURLMap[key]) {
-      download(imageURLMap[key], DOWNLOAD_PATH + "/" + fileName).then(fileName =>
-        console.log(`${fileName} is downloaded`)
+      download(imageURLMap[key], DOWNLOAD_PATH + "/" + fileName).then(
+        fileName => console.log(`${fileName} is downloaded`)
       );
     }
     imageURLMap[key] = fileName;

@@ -1,4 +1,4 @@
-import {Tag} from "nodegit";
+import { Tag } from "nodegit";
 
 export namespace VDOM {
   export type TagName = "DIV" | "SPAN" | "IMG";
@@ -12,6 +12,7 @@ export namespace VDOM {
     | "bottom"
     | "box-shadow"
     | "color"
+    | "cursor"
     | "display"
     | "font-family"
     | "font-size"
@@ -21,22 +22,25 @@ export namespace VDOM {
     | "left"
     | "letter-spacing"
     | "line-height"
+    | "margin-bottom"
+    | "margin-left"
+    | "margin-right"
+    | "margin-top"
     | "overflow"
     | "overflow-x"
+    | "padding-left"
+    | "padding-right"
+    | "padding-top"
+    | "padding-bottom"
     | "position"
     | "right"
     | "text-align"
     | "text-align"
+    | "text-overflow"
     | "top"
     | "vertical-align"
     | "visibility"
-    | "width"
-    | "margin-left"
-    | "margin-right"
-    | "margin-top"
-    | "margin-bottom"
-    | "padding-top"
-    | "padding-left";
+    | "width";
   export type Style = Map<VDOM.StylePropertyName, string>;
   export type Classes = Set<ClassName>;
   export type AttributeName = string;

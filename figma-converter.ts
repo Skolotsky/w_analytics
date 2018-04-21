@@ -59,7 +59,9 @@ const replacers = {
         const parentName = path.parentPath.node.attributes.get("data-name");
         switch (parentName) {
           case "Department & City": {
-            node.text = "<%= (job['department'] || 'Need Department').upcase %>";
+            node.text =
+              "<%= (job['department'] || 'Need Department').upcase %>";
+            node.style.set("text-overflow", "ellipsis");
             break;
           }
           case "City": {
@@ -108,6 +110,7 @@ const replacers = {
         return "";
       }
       case "Main": {
+        node = Object.assign({}, node) as VDOM.Node;
         if (!node.children) {
           return "";
         }
@@ -116,15 +119,16 @@ const replacers = {
         node.style.set("margin-top", "55px");
         node.style.set("overflow", "hidden");
         const breakpoints: { width: number; className: string }[] = [];
-        node.children.slice().forEach(child => {
+        const children: VDOM.Node[] = [];
+        node.children.forEach(child => {
           const childName = child.attributes.get("data-name");
           const match = childName && childName.match(BREAKPOINT_REGEXP);
           if (match && match[1] === state.lang) {
             processBreakpoint(child, breakpoints);
-          } else if (node.children) {
-            node.children.splice(node.children.indexOf(child), 1)
+            children.push(child);
           }
         });
+        node.children = children;
         breakpoints.sort((a, b) => {
           return a.width - b.width;
         });
@@ -166,17 +170,26 @@ const replacers = {
         break;
       }
       case "Position Card": {
-        node.classes.add('position-card');
-        return `<% jobs.each do |job| %>${printVDOMNode(node, replacers.cards.bind(replacers, state))}<% end %>`;
+        node.classes.add("position-card");
+        return `<% jobs.each do |job| %>${printVDOMNode(
+          node,
+          replacers.cards.bind(replacers, state)
+        )}<% end %>`;
       }
       case "Cards": {
+        node.classes.add("cards");
+        node.attributes.set("data-type", "FRAME");
         if (node.box) {
           node.style.set("position", "relative");
-          node.style.set("margin-bottom", `${node.box.yt + CARD_MARGIN}px`);
-          node.style.delete("height");
+          node.style.set("margin-left", `${node.box.xl}px`);
+          node.style.set("margin-right", `${node.box.xr}px`);
+          node.style.set("padding-top", `${node.box.yt}px`);
+          node.style.delete("left");
+          node.style.delete("top");
           node.style.delete("right");
+          node.style.delete("bottom");
           if (state.breakpoint !== "Mobile") {
-            node.style.set("width", `${node.box.w}px`);
+            node.style.set("width", `${node.box.w + CARD_MARGIN}px`);
           }
         }
         //node.text = '<%= erb :"dynamic/careers/cards" %>';
@@ -197,12 +210,12 @@ const replacers = {
               card.style.set("width", `${card.box.w}px`);
             }
             node.children.push(card);
-            node.style.set("padding-left", `${card.box.xl}px`);
-            node.style.set("padding-top", `${card.box.yt}px`);
+            //node.style.set("padding-left", `${card.box.xl}px`);
+            //node.style.set("padding-top", `${card.box.yt}px`);
           }
           if (fallBack && fallBack.box) {
-            fallBack.classes.add('position-card');
-            fallBack.classes.add('fallback-card');
+            fallBack.classes.add("position-card");
+            fallBack.classes.add("fallback-card");
             resetPosition(fallBack);
             fallBack.style.set("position", "relative");
             if (state.breakpoint === "Mobile") {
@@ -218,26 +231,36 @@ const replacers = {
       default:
         const match = nodeName && nodeName.match(BREAKPOINT_REGEXP);
         if (match) {
-          state.breakpoint = match[2];
-          node.classes.add("breakpoint-" + match[2].toLowerCase());
+          if (match[1] === state.lang) {
+            state.breakpoint = match[2];
+            node.classes.add("breakpoint-" + match[2].toLowerCase());
+          } else {
+            return "";
+          }
         }
         if (node.style.get("display") === "none") {
           return "";
         }
     }
+    if (node.tag === "IMG") {
+      const src = node.attributes.get("src") || "";
+      node.attributes.set("src", `<%= img_url_prefix %>/${src}`);
+    }
     return node;
   }
 };
 
-export function printVDOMbyFieldId(
-  fileId: string,
-  token: string,
-  outDir: string
-) {
-  getVDOMByFileId(fileId, token).then(vdomNode => {
-    const state = { css: `
+function initState(lang: string) {
+  return {
+    css: `
+.cards:after {
+  content: '';
+  display: block;
+  clear: both;
+}
 .position-card {
   margin-bottom: ${CARD_MARGIN}px;
+  cursor: pointer;
 }
 .breakpoint-desktop .position-card,
 .breakpoint-tablet .position-card {
@@ -247,16 +270,32 @@ export function printVDOMbyFieldId(
 .breakpoint-desktop .fallback-card,
 .breakpoint-tablet .fallback-card {
   margin-right: 50%;
-}`, breakpoint: "", lang: "en" };
-    const html =
-      printVDOM(vdomNode, replacers.careers.bind(replacers, state)) +
-      `<style>${state.css}</style>`;
-    fs.writeFileSync(`${outDir}/careers.erb`, html);
-    fs.writeFileSync(`page.html`, html);
-    // fs.writeFileSync(
-    //   `cards.erb`,
-    //   cardWrapper.card
-    // );
+}`,
+    breakpoint: "",
+    lang
+  };
+}
+
+function printTemplate(vdomNode: VDOM.Document, outDir: string, lang: string) {
+  const state = initState(lang);
+  const html =
+    printVDOM(vdomNode, replacers.careers.bind(replacers, state)) +
+    `<style>${state.css}</style>`;
+  fs.writeFileSync(`${outDir}/careers_${lang}.erb`, html);
+  fs.writeFileSync(
+    `careers_${lang}.html`,
+    html.replace(/<%= img_url_prefix %>\//g, "")
+  );
+}
+
+export function printVDOMbyFieldId(
+  fileId: string,
+  token: string,
+  outDir: string
+) {
+  getVDOMByFileId(fileId, token).then(vdomNode => {
+    printTemplate(vdomNode, outDir, "en");
+    printTemplate(vdomNode, outDir, "ru");
   });
 }
 
