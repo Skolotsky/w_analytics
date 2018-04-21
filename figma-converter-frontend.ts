@@ -3,7 +3,7 @@ import * as request from "request";
 import * as FigmaEndpoint from "figma-js";
 import { Figma } from "./figma-definitions";
 import { VDOM } from "./vdom-definitions";
-import * as escapeHTML from 'escape-html';
+import * as escapeHTML from "escape-html";
 import * as path from "path";
 
 function toCSSColor(color: Figma.Color) {
@@ -254,7 +254,10 @@ function parseChildren(
   children
     .reverse()
     .sort((childA, childB) => {
-      if (Figma.isAbsoluteBoxBounded(childA) && Figma.isAbsoluteBoxBounded(childB)) {
+      if (
+        Figma.isAbsoluteBoxBounded(childA) &&
+        Figma.isAbsoluteBoxBounded(childB)
+      ) {
         return childA.absoluteBoundingBox.y - childB.absoluteBoundingBox.y;
       }
       return 0;
@@ -480,13 +483,13 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
   fs.mkdirSync(imgDir);
   Object.keys(imageURLMap).forEach(key => {
     const name = key.replace(/:/g, "-").replace(/;/g, "_");
-    const fileName = `${IMAGES_PATH}/${name}.svg`;
+    const fileName = `${name}.svg`;
     if (imageURLMap[key]) {
-      download(imageURLMap[key], DOWNLOAD_PATH + "/" + fileName).then(
-        fileName => console.log(`${fileName} is downloaded`)
+      download(imageURLMap[key], imgDir + "/" + fileName).then(fileName =>
+        console.log(`${fileName} is downloaded`)
       );
     }
-    imageURLMap[key] = fileName;
+    imageURLMap[key] = `${IMAGES_PATH}/${fileId}/${fileName}`;
   });
 }
 

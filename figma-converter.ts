@@ -64,10 +64,7 @@ function processMobileSectionGroups(
           paddingBottom = Math.min(paddingBottom, child.box.yb);
           child.style.delete("height");
           if (nodeType !== "TEXT") {
-            child.style.set(
-              "width",
-              `${child.box.w}px`
-            );
+            child.style.set("width", `${child.box.w}px`);
             child.style.set(
               "height",
               `${child.box.yt - offset + child.box.h}px`
