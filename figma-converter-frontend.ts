@@ -3,9 +3,8 @@ import * as request from "request";
 import * as FigmaEndpoint from "figma-js";
 import { Figma } from "./figma-definitions";
 import { VDOM } from "./vdom-definitions";
+import * as escapeHTML from 'escape-html';
 import * as path from "path";
-import isAbsoluteBoxBounded = Figma.isAbsoluteBoxBounded;
-import AbsoluteBoxBounded = Figma.AbsoluteBoxBounded;
 
 function toCSSColor(color: Figma.Color) {
   const r = Math.ceil(color.r * 256);
@@ -129,12 +128,12 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
       if (textPart.style && textPart.style !== node.style) {
         toStyle(textPart.style, vdomNode.style);
       }
-      vdomNode.text = textPart.text;
+      vdomNode.children = [escapeHTML(textPart.text)];
       vdomNode.tag = "SPAN";
       return vdomNode;
     });
   } else {
-    vdomNode.text = node.characters;
+    vdomNode.children = [escapeHTML(node.characters)];
   }
   if (node.style) {
     toStyle(node.style, vdomNode.style);
@@ -256,7 +255,7 @@ function parseChildren(
   children
     .reverse()
     .sort((childA, childB) => {
-      if (isAbsoluteBoxBounded(childA) && isAbsoluteBoxBounded(childB)) {
+      if (Figma.isAbsoluteBoxBounded(childA) && Figma.isAbsoluteBoxBounded(childB)) {
         return childA.absoluteBoundingBox.y - childB.absoluteBoundingBox.y;
       }
       return 0;
@@ -474,12 +473,15 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
   if (!fs.existsSync(IMAGES_PATH)) {
     fs.mkdirSync(IMAGES_PATH);
   }
-  if (!fs.existsSync(`${IMAGES_PATH}/${fileId}`)) {
-    fs.mkdirSync(`${IMAGES_PATH}/${fileId}`);
+  const imgDir = `${DOWNLOAD_PATH}/${IMAGES_PATH}/${fileId}`;
+  if (fs.existsSync(imgDir)) {
+    fs.readdirSync(imgDir).forEach(file => fs.unlinkSync(`${imgDir}/${file}`));
+    fs.rmdirSync(imgDir);
   }
+  fs.mkdirSync(imgDir);
   Object.keys(imageURLMap).forEach(key => {
     const name = key.replace(/:/g, "-").replace(/;/g, "_");
-    const fileName = `${IMAGES_PATH}/${fileId}/${name}.svg`;
+    const fileName = `${IMAGES_PATH}/${name}.svg`;
     if (imageURLMap[key]) {
       download(imageURLMap[key], DOWNLOAD_PATH + "/" + fileName).then(
         fileName => console.log(`${fileName} is downloaded`)

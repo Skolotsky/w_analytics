@@ -16,6 +16,7 @@ function resetPosition(node: VDOM.Node) {
   node.style.delete("top");
   node.style.delete("bottom");
 }
+
 function fillPage(node: VDOM.Node) {
   resetPosition(node);
   node.style.delete("width");
@@ -23,8 +24,71 @@ function fillPage(node: VDOM.Node) {
   node.style.delete("height");
 }
 
+function isString(node: any): node is string {
+  return typeof node == "string";
+}
+
+function isNode(
+  node: string | VDOM.Node | null | undefined
+): node is VDOM.Node {
+  return !!node && !isString(node);
+}
+
+function processMobileSectionGroups(node: VDOM.Node, offset: number = 0): {offset: number, paddingBottom: number} {
+  node.style.set("position", "relative");
+  node.style.delete("bottom");
+  let paddingBottom = node.box ? node.box.h : 0;
+  if (node.children) {
+    node.children.forEach(child => {
+      if (isNode(child) && child.box) {
+        const nodeType = child.attributes.get("data-type");
+        if (nodeType === "GROUP") {
+          //child.attributes.set("data-type", "FRAME");
+          let result = processMobileSectionGroups(child, offset);
+          offset = result.offset;
+          paddingBottom = Math.min(paddingBottom, result.paddingBottom);
+        }
+        else {
+          resetPosition(child);
+          child.style.set("position", "relative");
+          child.style.set("padding-left", `${child.box.xl}px`);
+          child.style.set("padding-right", `${child.box.xr}px`);
+          child.style.set("padding-top", `${child.box.yt - offset}px`);
+          paddingBottom = Math.min(paddingBottom, child.box.yb);
+          child.style.delete("height");
+          if (nodeType !== 'TEXT') {
+            child.style.set("width", `${child.box.xl + child.box.w + child.box.xr}px`);
+            child.style.set("height", `${child.box.yt - offset + child.box.h}px`);
+          }
+          offset = child.box.yt + child.box.h;
+        }
+      }
+    });
+  }
+  return {offset, paddingBottom};
+}
+
+function processSection(node: VDOM.Node, breakpoint: string) {
+  resetPosition(node);
+  node.style.set("position", "relative");
+  const nodeName= node.attributes.get("data-name");
+  if (breakpoint == "Mobile" && nodeName !== 'Open Positions' && nodeName !== 'Gallery') {
+    node.style.delete("height");
+    if (node.children) {
+      const content = node.children.find(
+        child => isNode(child) && child.attributes.get("data-name") === "Content"
+      );
+      if (isNode(content)) {
+        let {paddingBottom} = processMobileSectionGroups(content);
+        node.style.set("padding-bottom", `${paddingBottom}px`)
+      }
+    }
+  }
+}
+
 function processBreakpoint(
   node: VDOM.Node,
+  breakpoint: string,
   breakpoints: { width: number; className: string }[]
 ) {
   if (node.box) {
@@ -37,8 +101,9 @@ function processBreakpoint(
   fillPage(node);
   if (node.children) {
     node.children.forEach(child => {
-      resetPosition(child);
-      child.style.set("position", "relative");
+      if (isNode(child)) {
+        processSection(child, breakpoint);
+      }
     });
   }
 }
@@ -49,40 +114,63 @@ const BREAKPOINT_REGEXP = /(en|ru) \((Desktop|Tablet|Mobile)\)/;
 const replacers = {
   cards: (
     state: { css: string; breakpoint: string; lang: string },
-    node: VDOM.Node,
+    node: VDOM.Node | string,
     path: NodePath,
     replacer: Replacer
   ): VDOM.Node | string => {
+    if (isString(node)) {
+      return node;
+    }
     const nodeType = node.attributes.get("data-type");
     if (nodeType === "TEXT") {
       if (path.parentPath) {
-        const parentName = path.parentPath.node.attributes.get("data-name");
-        switch (parentName) {
-          case "Department & City": {
-            node.text =
-              "<%= (job['department'] || 'Need Department').upcase %>";
-            node.style.set("text-overflow", "ellipsis");
-            break;
-          }
-          case "City": {
-            node.text = "<%= job['location']['city'] %>";
-            break;
-          }
-          case "Position Card": {
-            node.text = "<%= job['title'] %>";
-            break;
+        if (isNode(path.parentPath.node)) {
+          const parentName = path.parentPath.node.attributes.get("data-name");
+          switch (parentName) {
+            case "Department & City": {
+              node.children = [
+                "<%= (job['department'] || 'Need Department').upcase %>"
+              ];
+              node.classes.add("card-title");
+              break;
+            }
+            case "City": {
+              node.children = ["<%= job['location']['city'] %>"];
+              node.classes.add("card-title");
+              break;
+            }
+            case "Position Card": {
+              node.children = ["<%= job['title'] %>"];
+              node.classes.add("card-text");
+              break;
+            }
           }
         }
       }
+    }
+    const nodeName = node.attributes.get("data-name");
+    if (nodeName === "City" && node.children) {
+      node.children = [
+        "<% if job['location']['city'] %>",
+        ...node.children,
+        "<% end %>"
+      ];
+    }
+    if (node.tag === "IMG") {
+      const src = node.attributes.get("src") || "";
+      node.attributes.set("src", `<%= img_url_prefix %>/${src}`);
     }
     return node;
   },
   careers: (
     state: { css: string; breakpoint: string; lang: string },
-    node: VDOM.Node,
+    node: VDOM.Node | string,
     path: NodePath,
     replacer: Replacer
   ): VDOM.Node | string => {
+    if (isString(node)) {
+      return node;
+    }
     const nodeName = node.attributes.get("data-name");
     switch (nodeName) {
       case "Document": {
@@ -121,11 +209,13 @@ const replacers = {
         const breakpoints: { width: number; className: string }[] = [];
         const children: VDOM.Node[] = [];
         node.children.forEach(child => {
-          const childName = child.attributes.get("data-name");
-          const match = childName && childName.match(BREAKPOINT_REGEXP);
-          if (match && match[1] === state.lang) {
-            processBreakpoint(child, breakpoints);
-            children.push(child);
+          if (isNode(child)) {
+            const childName = child.attributes.get("data-name");
+            const match = childName && childName.match(BREAKPOINT_REGEXP);
+            if (match && match[1] === state.lang) {
+              processBreakpoint(child, match[2], breakpoints);
+              children.push(child);
+            }
           }
         });
         node.children = children;
@@ -160,9 +250,10 @@ const replacers = {
         node.style.delete("height");
         if (node.children && node.children.length) {
           const content = node.children.find(
-            child => child.attributes.get("data-name") === "Content"
+            child =>
+              isNode(child) && child.attributes.get("data-name") === "Content"
           );
-          if (content) {
+          if (isNode(content)) {
             content.style.set("position", "relative");
             node.style.delete("bottom");
           }
@@ -195,13 +286,17 @@ const replacers = {
         //node.text = '<%= erb :"dynamic/careers/cards" %>';
         if (node.children && node.children.length) {
           const card = node.children.find(
-            child => child.attributes.get("data-name") === "Position Card"
+            child =>
+              isNode(child) &&
+              child.attributes.get("data-name") === "Position Card"
           );
           const fallBack = node.children.find(
-            child => child.attributes.get("data-name") === "Fallback Card"
+            child =>
+              isNode(child) &&
+              child.attributes.get("data-name") === "Fallback Card"
           );
           node.children = [];
-          if (card && card.box) {
+          if (isNode(card) && card.box) {
             resetPosition(card);
             card.style.set("position", "relative");
             if (state.breakpoint === "Mobile") {
@@ -213,7 +308,7 @@ const replacers = {
             //node.style.set("padding-left", `${card.box.xl}px`);
             //node.style.set("padding-top", `${card.box.yt}px`);
           }
-          if (fallBack && fallBack.box) {
+          if (isNode(fallBack) && fallBack.box) {
             fallBack.classes.add("position-card");
             fallBack.classes.add("fallback-card");
             resetPosition(fallBack);
@@ -258,6 +353,14 @@ function initState(lang: string) {
   display: block;
   clear: both;
 }
+.card-text,
+.card-title {
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.card-title {
+  white-space: nowrap;
+}
 .position-card {
   margin-bottom: ${CARD_MARGIN}px;
   cursor: pointer;
@@ -270,6 +373,10 @@ function initState(lang: string) {
 .breakpoint-desktop .fallback-card,
 .breakpoint-tablet .fallback-card {
   margin-right: 50%;
+}
+.fallback-card [data-type='TEXT'] {
+  text-overflow: ellipsis;
+  overflow: hidden;
 }`,
     breakpoint: "",
     lang

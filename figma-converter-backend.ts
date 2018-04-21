@@ -1,13 +1,13 @@
 import { VDOM } from "./vdom-definitions";
-export type NodePath = { node: VDOM.Node; parentPath?: NodePath };
+export type NodePath = { node: VDOM.Node | string; parentPath?: NodePath };
 
 export type Replacer = (
-  node: VDOM.Node,
+  node: VDOM.Node | string,
   parentPath: NodePath,
   replacer: Replacer
 ) => VDOM.Node | string;
 export function printVDOMNode(
-  node: VDOM.Node,
+  node: VDOM.Node | string,
   replacer?: Replacer,
   path?: NodePath
 ): string {
@@ -19,12 +19,14 @@ export function printVDOMNode(
     }
     node = result;
   }
+  if (typeof node === "string") {
+    return "";
+  }
   let childrenHTML = node.children
     ? node.children
         .map(child => printVDOMNode(child, replacer, newPath))
         .join("")
     : "";
-  let text = node.text || "";
   if (node.attributes.get("data-type") !== "GROUP") {
     let style = node.style.size
       ? ` style="${([...node.style.entries()] as [
@@ -44,11 +46,11 @@ export function printVDOMNode(
           .map(([name, value]) => `${name}="${value}"`)
           .join(" ")}`
       : "";
-    return `<${
+    return `<${node.tag}${attributes}${classes}${style}>${childrenHTML}</${
       node.tag
-    }${attributes}${classes}${style}>${text}${childrenHTML}</${node.tag}>`;
+    }>`;
   }
-  return `${text}${childrenHTML}`;
+  return `${childrenHTML}`;
 }
 
 export function printVDOM(

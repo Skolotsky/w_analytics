@@ -48,8 +48,7 @@ export namespace VDOM {
     tag: TagName;
     classes: Classes;
     style: Style;
-    children?: Node[];
-    text?: string;
+    children?: (Node|string)[];
     attributes: Map<AttributeName, string>;
     box?: {
       xl: number;
@@ -66,7 +65,7 @@ export namespace VDOM {
       tag: tag,
       classes: new Set(),
       style: new Map(),
-      attributes: new Map()
+      attributes: new Map(),
     };
   }
   export type NodeMap = Map<string, VDOM.Node>;
