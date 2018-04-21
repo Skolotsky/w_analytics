@@ -476,11 +476,13 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
     fs.mkdirSync(IMAGES_PATH);
   }
   const imgDir = `${DOWNLOAD_PATH}/${IMAGES_PATH}/${fileId}`;
-  if (fs.existsSync(imgDir)) {
-    fs.readdirSync(imgDir).forEach(file => fs.unlinkSync(`${imgDir}/${file}`));
-    fs.rmdirSync(imgDir);
+  if (process.argv.indexOf("-c") < 0) {
+    if (fs.existsSync(imgDir)) {
+      fs.readdirSync(imgDir).forEach(file => fs.unlinkSync(`${imgDir}/${file}`));
+      fs.rmdirSync(imgDir);
+    }
+    fs.mkdirSync(imgDir);
   }
-  fs.mkdirSync(imgDir);
   Object.keys(imageURLMap).forEach(key => {
     const name = key.replace(/:/g, "-").replace(/;/g, "_");
     const fileName = `${name}.svg`;

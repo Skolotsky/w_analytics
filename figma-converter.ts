@@ -60,15 +60,20 @@ function processMobileSectionGroups(
           child.style.set("position", "relative");
           child.style.set("margin-left", `${child.box.xl}px`);
           child.style.set("margin-right", `${child.box.xr}px`);
-          child.style.set("padding-top", `${child.box.yt - offset}px`);
+          const offsetTop = child.box.yt - offset;
+          if (offsetTop < 0) {
+            child.style.set("margin-top", `${offsetTop}px`);
+          } else {
+            child.style.set("padding-top", `${offsetTop}px`);
+          }
           paddingBottom = Math.min(paddingBottom, child.box.yb);
           child.style.delete("height");
           if (nodeType !== "TEXT") {
+            if (child.tag === "IMG") {
+              child.style.set("display", "block");
+            }
             child.style.set("width", `${child.box.w}px`);
-            child.style.set(
-              "height",
-              `${child.box.yt - offset + child.box.h}px`
-            );
+            child.style.set("height", `${offsetTop + child.box.h}px`);
           }
           offset = child.box.yt + child.box.h;
         }
