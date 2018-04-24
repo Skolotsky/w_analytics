@@ -36,15 +36,21 @@ function isNode(
 
 function processMobileSectionGroups(
   node: VDOM.Node,
+  sectionName: string,
   offset: number = 0
 ): { offset: number; paddingBottom: number } {
   if (node.box) {
+    if (sectionName === "Open Positions") {
+      node.style.set("left", `${node.box.xl}px`);
+      node.style.set("right", `${node.box.xr}px`);
+      return { offset, paddingBottom: 0 };
+    }
     resetPosition(node);
     node.style.delete("width");
     node.style.delete("height");
     node.style.set("position", "relative");
-    node.style.set("padding-right", `${node.box.xr}px`);
     node.style.set("padding-left", `${node.box.xl}px`);
+    node.style.set("padding-right", `${node.box.xr}px`);
   }
   let paddingBottom = node.box ? node.box.h : 0;
   if (node.children) {
@@ -56,8 +62,9 @@ function processMobileSectionGroups(
           child.attributes.set("data-type", "FRAME");
           child.style.set("position", "relative");
           child.style.set("top", "-410px");
+          child.style.set("white-space", "nowrap");
         } else if (nodeType === "GROUP") {
-          let result = processMobileSectionGroups(child, offset);
+          let result = processMobileSectionGroups(child, sectionName, offset);
           offset = result.offset;
           paddingBottom = Math.min(paddingBottom, result.paddingBottom);
         } else {
@@ -94,7 +101,7 @@ function processMobileSectionGroups(
 function processSection(node: VDOM.Node, breakpoint: string) {
   resetPosition(node);
   node.style.set("position", "relative");
-  const nodeName = node.attributes.get("data-name");
+  const sectionName = node.attributes.get("data-name") || "";
   if (breakpoint == "Mobile") {
     node.style.delete("height");
     if (node.children) {
@@ -103,17 +110,14 @@ function processSection(node: VDOM.Node, breakpoint: string) {
           isNode(child) && child.attributes.get("data-name") === "Content"
       );
       if (isNode(content)) {
-        let { paddingBottom } = processMobileSectionGroups(content);
+        let { paddingBottom } = processMobileSectionGroups(content, sectionName);
         node.style.set("padding-bottom", `${paddingBottom}px`);
       }
     }
   }
 }
 
-function processBreakpoint(
-  node: VDOM.Node,
-  breakpoint: string
-) {
+function processBreakpoint(node: VDOM.Node, breakpoint: string) {
   if (node.box) {
     // const width = node.box.w;
     //const className = `figma_bp_${breakpoints.length}`;

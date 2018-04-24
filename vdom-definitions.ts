@@ -41,7 +41,8 @@ export namespace VDOM {
     | "top"
     | "vertical-align"
     | "visibility"
-    | "width";
+    | "width"
+    | "white-space";
   export type Style = Map<VDOM.StylePropertyName, string>;
   export type Classes = Set<ClassName>;
   export type AttributeName = string;
