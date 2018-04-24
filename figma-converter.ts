@@ -110,7 +110,10 @@ function processSection(node: VDOM.Node, breakpoint: string) {
           isNode(child) && child.attributes.get("data-name") === "Content"
       );
       if (isNode(content)) {
-        let { paddingBottom } = processMobileSectionGroups(content, sectionName);
+        let { paddingBottom } = processMobileSectionGroups(
+          content,
+          sectionName
+        );
         node.style.set("padding-bottom", `${paddingBottom}px`);
       }
     }
