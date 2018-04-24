@@ -257,7 +257,15 @@ const replacers = {
       case "Show Positions Link": {
         node.style.set("display", "block");
         node.tag = "A";
-        node.attributes.set("href", `#Cards_${state.breakpoint}`);
+        node.attributes.set("href", "#");
+        node.attributes.set("onclick", `
+var offset = $('#Cards_${state.breakpoint}').offset();
+offset.top -= 10;
+$('html, body').animate({
+    scrollTop: offset.top,
+    scrollLeft: offset.left
+});
+`);
         node.classes.add("show-positions-link");
         break;
       }
@@ -318,6 +326,7 @@ const replacers = {
         return "";
       }
       case "Open Positions": {
+        node.attributes.set("id", `Cards_${state.breakpoint}`);
         node.style.set("position", "relative");
         node.style.delete("height");
         if (node.children && node.children.length) {
@@ -344,7 +353,6 @@ const replacers = {
       }
       case "Cards": {
         node.classes.add("cards");
-        node.attributes.set("id", `Cards_${state.breakpoint}`);
         node.attributes.set("data-type", "FRAME");
         if (node.box) {
           node.style.set("position", "relative");
