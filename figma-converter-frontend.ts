@@ -9,7 +9,7 @@ import * as path from "path";
 function encodeHTML(text) {
   return HTMLDecoderEncoder.encode(text)
     .replace("&#x2028;", "<br>")
-    .replace(/\n([^\n]*)/g, '<p>$1</p>');
+    .replace(/\n([^\n]*)/g, "<p>$1</p>");
 }
 
 function toCSSColor(color: Figma.Color) {
@@ -79,10 +79,7 @@ function parseRECTANGLE(node: Figma.RECTANGLE, vdomNode: VDOM.Node) {
         node.absoluteBoundingBox.height > 1 &&
         node.absoluteBoundingBox.width > 1
       ) {
-        vdomNode.style.set(
-          "background-color",
-          `${toCSSColor(fill.color)}`
-        );
+        vdomNode.style.set("background-color", `${toCSSColor(fill.color)}`);
       } else if (node.absoluteBoundingBox.width > 1) {
         vdomNode.style.set(
           "border-top",
@@ -305,7 +302,7 @@ function parseNode(
   parentBox?: Figma.Rectangle
 ): VDOM.Node | VDOM.Node[] | null {
   const vdomNode: VDOM.Node = VDOM.createNode();
-  vdomNode.attributes.set("id", "id" + node.id.replace(":", '-'));
+  vdomNode.attributes.set("id", "id" + node.id.replace(":", "-"));
   vdomNode.attributes.set("data-name", node.name);
   vdomNode.attributes.set("data-type", node.type);
   if (Figma.isBOOLEAN_OPERATION(node)) {

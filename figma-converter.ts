@@ -112,15 +112,13 @@ function processSection(node: VDOM.Node, breakpoint: string) {
 
 function processBreakpoint(
   node: VDOM.Node,
-  breakpoint: string,
-  breakpoints: { width: number; className: string }[]
+  breakpoint: string
 ) {
   if (node.box) {
-    const width = node.box.w;
-    const className = `figma_bp_${breakpoints.length}`;
-    breakpoints.push({ width, className });
-    node.classes.add(className);
-    node.attributes.set("data-breackpoint", `${width}px`);
+    // const width = node.box.w;
+    //const className = `figma_bp_${breakpoints.length}`;
+    //breakpoints.push({ width, className });
+    //node.classes.add(className);
   }
   fillPage(node);
   if (node.children) {
@@ -294,40 +292,19 @@ const replacers = {
         fillPage(node);
         node.style.set("margin-top", "55px");
         node.style.set("overflow", "hidden");
-        const breakpoints: { width: number; className: string }[] = [];
+        //const breakpoints: { width: number; className: string }[] = [];
         const children: VDOM.Node[] = [];
         node.children.forEach(child => {
           if (isNode(child)) {
             const childName = child.attributes.get("data-name");
             const match = childName && childName.match(BREAKPOINT_REGEXP);
             if (match && match[1] === state.lang) {
-              processBreakpoint(child, match[2], breakpoints);
+              processBreakpoint(child, match[2]);
               children.push(child);
             }
           }
         });
         node.children = children;
-        breakpoints.sort((a, b) => {
-          return a.width - b.width;
-        });
-        breakpoints.forEach(({ width, className }, index) => {
-          if (index > 0) {
-            state.css += `
-@media only screen and (max-width: ${breakpoints[index].width}px) {
-  .${className} {
-    display: none;
-  }
-}`;
-          }
-          if (index + 1 < breakpoints.length) {
-            state.css += `
-@media only screen and (min-width: ${breakpoints[index + 1].width + 1}px) {
-  .${className} {
-    display: none;
-  }
-}`;
-          }
-        });
         break;
       }
       case "Position Modal Popup (Desktop, Tablet)": {
