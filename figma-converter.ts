@@ -51,7 +51,12 @@ function processMobileSectionGroups(
     node.children.forEach(child => {
       if (isNode(child) && child.box) {
         const nodeType = child.attributes.get("data-type");
-        if (nodeType === "GROUP") {
+        const nodeName = child.attributes.get("data-name");
+        if (nodeName === "Features") {
+          child.attributes.set("data-type", "FRAME");
+          child.style.set("position", "relative");
+          child.style.set("top", "-410px");
+        } else if (nodeType === "GROUP") {
           let result = processMobileSectionGroups(child, offset);
           offset = result.offset;
           paddingBottom = Math.min(paddingBottom, result.paddingBottom);
@@ -61,7 +66,7 @@ function processMobileSectionGroups(
           child.style.set("margin-left", `${child.box.xl}px`);
           child.style.set("margin-right", `${child.box.xr}px`);
           const offsetTop = child.box.yt - offset;
-          if (offsetTop < 0) {
+          if (offsetTop < 0 || nodeType === "RECTANGLE") {
             child.style.set("margin-top", `${offsetTop}px`);
           } else {
             child.style.set("padding-top", `${offsetTop}px`);
@@ -69,13 +74,16 @@ function processMobileSectionGroups(
           paddingBottom = Math.min(paddingBottom, child.box.yb);
           child.style.delete("height");
           if (nodeType !== "TEXT") {
-            if (child.tag === "IMG") {
-              child.style.set("display", "block");
+            if (nodeName !== "SEPARATOR") {
+              child.style.set("width", `${child.box.w}px`);
             }
-            child.style.set("width", `${child.box.w}px`);
             child.style.set("height", `${offsetTop + child.box.h}px`);
           }
           offset = child.box.yt + child.box.h;
+          if (child.style.get("display") === "none") {
+            child.style.delete("display");
+            child.style.set("visibility", "hidden");
+          }
         }
       }
     });
@@ -87,11 +95,7 @@ function processSection(node: VDOM.Node, breakpoint: string) {
   resetPosition(node);
   node.style.set("position", "relative");
   const nodeName = node.attributes.get("data-name");
-  if (
-    breakpoint == "Mobile" &&
-    nodeName !== "Open Positions" &&
-    nodeName !== "Gallery"
-  ) {
+  if (breakpoint == "Mobile") {
     node.style.delete("height");
     if (node.children) {
       const content = node.children.find(
@@ -190,6 +194,9 @@ const replacers = {
     if (isString(node)) {
       return node;
     }
+    if (node.tag === "IMG") {
+      node.style.set("display", "block");
+    }
     const nodeName = node.attributes.get("data-name");
     switch (nodeName) {
       case "Document": {
@@ -206,7 +213,40 @@ const replacers = {
         );
       }
       case "Gallery": {
-        node.children = ['<%= erb :"dynamic/careers/gallery" %>'];
+        if (node.children) {
+          const content = node.children.find(
+            child =>
+              isNode(child) && child.attributes.get("data-name") === "Content"
+          );
+          if (isNode(content) && content.children) {
+            const id = content.attributes.get("id");
+            resetPosition(content);
+
+            if (content.box) {
+              if (
+                state.breakpoint === "Desktop" ||
+                state.breakpoint === "Tablet"
+              ) {
+                const halfWidth = Math.floor(content.box.w / 2 - 48 + 6);
+                content.style.set("padding-left", `calc(50% - ${halfWidth}px)`);
+                content.style.set(
+                  "padding-right",
+                  `calc(50% - ${halfWidth}px)`
+                );
+                content.style.set("height", "100%");
+                //content.style.set("width", `${content.box && content.box.w}px`);
+              } else {
+                content.style.set("padding-left", `${content.box.xl - 6}px`);
+                content.style.set("padding-right", `${content.box.xr - 6}px`);
+              }
+            }
+            content.classes.add("gallery-content");
+            content.attributes.set("data-breakpoint", state.breakpoint);
+            content.children = [
+              `<%= erb :"dynamic/careers/gallery", :locals => {:img_url_prefix => img_url_prefix } %>`
+            ];
+          }
+        }
         break;
       }
       case "Show Positions Link": {
@@ -218,6 +258,60 @@ const replacers = {
       }
       case "Tooltip": {
         return "";
+      }
+      case "YoY": {
+        if (node.attributes.get("data-type") === "GROUP" && node.children) {
+          const icon = node.children.find(
+            child =>
+              isNode(child) &&
+              child.attributes.get("data-name") === "Icons/Info Inverted/S"
+          );
+          if (isNode(icon)) {
+            icon.style.set("display", "none");
+          }
+          const tooltipGr = node.children.find(
+            child =>
+              isNode(child) && child.attributes.get("data-name") === "Tooltip"
+          );
+          if (isNode(icon) && isNode(tooltipGr) && tooltipGr.children) {
+            const tooltipIcon = tooltipGr.children.find(
+              child =>
+                isNode(child) &&
+                child.attributes.get("data-name") === "Icons/Info Inverted/S"
+            );
+            const tooltip = tooltipGr.children.find(
+              child =>
+                isNode(child) && child.attributes.get("data-name") === "Tooltip"
+            );
+            if (isNode(tooltipIcon) && isNode(tooltip)) {
+              tooltip.classes.add("tooltip");
+              icon.attributes.set(
+                "onmouseover",
+                `
+var tooltip = document.getElementById('${tooltip.attributes.get("id")}');
+if (tooltip) {
+  tooltip.style.display = 'block';
+}
+`
+              );
+              icon.attributes.set(
+                "onmouseout",
+                `
+var tooltip = document.getElementById('${tooltip.attributes.get("id")}');
+if (tooltip) {
+  tooltip.style.display = '';
+}
+`
+              );
+            }
+          }
+        }
+        break;
+      }
+      case "Separator": {
+        node.style.delete("width");
+        node.style.set("height", `${node.box && node.box.h}px`);
+        break;
       }
       case "Menus/Mobile/Black":
       case "Menus/Tablet/Black":
@@ -292,6 +386,9 @@ const replacers = {
       }
       case "Position Card": {
         node.classes.add("position-card");
+        node.tag = "A";
+        node.style.set("display", "block");
+        node.attributes.set("href", "<%= job['url'] %>");
         return `<% jobs.each do |job| %>${printVDOMNode(
           node,
           replacers.cards.bind(replacers, state)
@@ -349,6 +446,9 @@ const replacers = {
             } else {
               fallBack.style.set("width", `${fallBack.box.w}px`);
             }
+            fallBack.tag = "A";
+            fallBack.style.set("display", "block");
+            fallBack.attributes.set("href", "mailto:hr@wheely.com");
             node.children.push(fallBack);
           }
         }
@@ -378,43 +478,7 @@ const replacers = {
 
 function initState(lang: string) {
   return {
-    css: `
-.show-positions-link:hover * {
-  opacity: 1!important
-}
-.cards:after {
-  content: '';
-  display: block;
-  clear: both;
-}
-.card-text,
-.card-title {
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-.card-title {
-  white-space: nowrap;
-}
-.position-card {
-  margin-bottom: ${CARD_MARGIN}px;
-  cursor: pointer;
-}
-.position-card:hover {
-  background-color: #F5F5F5!important
-}
-.breakpoint-desktop .position-card,
-.breakpoint-tablet .position-card {
-  float: left;
-  margin-right: ${CARD_MARGIN}px;
-}
-.breakpoint-desktop .fallback-card,
-.breakpoint-tablet .fallback-card {
-  margin-right: 50%;
-}
-.fallback-card [data-type='TEXT'] {
-  text-overflow: ellipsis;
-  overflow: hidden;
-}`,
+    css: "",
     breakpoint: "",
     lang
   };
@@ -422,10 +486,9 @@ function initState(lang: string) {
 
 function printTemplate(vdomNode: VDOM.Document, outDir: string, lang: string) {
   const state = initState(lang);
-  const html =
-    printVDOM(vdomNode, replacers.careers.bind(replacers, state)) +
-    `<style>${state.css}</style>`;
-  fs.writeFileSync(`${outDir}/careers_${lang}.erb`, html);
+  let html = printVDOM(vdomNode, replacers.careers.bind(replacers, state));
+  html = `<style>${state.css}</style>` + html;
+  fs.writeFileSync(`${outDir}/careers/content_${lang}.erb`, html);
   fs.writeFileSync(
     `careers_${lang}.html`,
     html.replace(/<%= img_url_prefix %>\//g, "")

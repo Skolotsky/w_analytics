@@ -1,7 +1,7 @@
 import { Tag } from "nodegit";
 
 export namespace VDOM {
-  export type TagName = "DIV" | "SPAN" | "IMG" | "A";
+  export type TagName = "DIV" | "SPAN" | "IMG" | "A" | "P";
   export type ClassName = string;
   export type StylePropertyName =
     | "background-color"

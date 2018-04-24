@@ -3,8 +3,12 @@ import * as request from "request";
 import * as FigmaEndpoint from "figma-js";
 import { Figma } from "./figma-definitions";
 import { VDOM } from "./vdom-definitions";
-import * as escapeHTML from "escape-html";
+import * as HTMLDecoderEncoder from "html-encoder-decoder";
 import * as path from "path";
+
+function encodeHTML(text) {
+  return HTMLDecoderEncoder.encode(text).replace(/\n([^\n]*)/g, '<p>$1</p>');
+}
 
 function toCSSColor(color: Figma.Color) {
   const r = Math.ceil(color.r * 256);
@@ -74,8 +78,8 @@ function parseRECTANGLE(node: Figma.RECTANGLE, vdomNode: VDOM.Node) {
         node.absoluteBoundingBox.width > 1
       ) {
         vdomNode.style.set(
-          "border",
-          `${node.strokeWeight}px solid ${toCSSColor(fill.color)}`
+          "background-color",
+          `${toCSSColor(fill.color)}`
         );
       } else if (node.absoluteBoundingBox.width > 1) {
         vdomNode.style.set(
@@ -131,11 +135,11 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
       if (textPart.style && textPart.style !== node.style) {
         toStyle(textPart.style, vdomNode.style);
       }
-      vdomNode.children = [escapeHTML(textPart.text)];
+      vdomNode.children = [encodeHTML(textPart.text)];
       return vdomNode;
     });
   } else {
-    vdomNode.children = [escapeHTML(node.characters)];
+    vdomNode.children = [encodeHTML(node.characters)];
   }
   if (node.style) {
     toStyle(node.style, vdomNode.style);
@@ -299,7 +303,7 @@ function parseNode(
   parentBox?: Figma.Rectangle
 ): VDOM.Node | VDOM.Node[] | null {
   const vdomNode: VDOM.Node = VDOM.createNode();
-  vdomNode.attributes.set("id", node.id);
+  vdomNode.attributes.set("id", "id" + node.id.replace(":", '-'));
   vdomNode.attributes.set("data-name", node.name);
   vdomNode.attributes.set("data-type", node.type);
   if (Figma.isBOOLEAN_OPERATION(node)) {
