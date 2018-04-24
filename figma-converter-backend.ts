@@ -42,7 +42,7 @@ export function printVDOMNode(
     //let attributes = '';
     let attributes = node.attributes.size
       ? ` ${([...node.attributes.entries()] as [VDOM.AttributeName, string][])
-          //.filter(([name]) => name === "src")
+          .filter(([name]) => name !== "data-name" && name !== "data-type")
           .map(([name, value]) => `${name}="${value}"`)
           .join(" ")}`
       : "";
