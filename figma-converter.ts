@@ -269,42 +269,6 @@ const replacers = {
           if (isNode(icon)) {
             icon.style.set("display", "none");
           }
-          const tooltipGr = node.children.find(
-            child =>
-              isNode(child) && child.attributes.get("data-name") === "Tooltip"
-          );
-          if (isNode(icon) && isNode(tooltipGr) && tooltipGr.children) {
-            const tooltipIcon = tooltipGr.children.find(
-              child =>
-                isNode(child) &&
-                child.attributes.get("data-name") === "Icons/Info Inverted/S"
-            );
-            const tooltip = tooltipGr.children.find(
-              child =>
-                isNode(child) && child.attributes.get("data-name") === "Tooltip"
-            );
-            if (isNode(tooltipIcon) && isNode(tooltip)) {
-              tooltip.classes.add("tooltip");
-              icon.attributes.set(
-                "onmouseover",
-                `
-var tooltip = document.getElementById('${tooltip.attributes.get("id")}');
-if (tooltip) {
-  tooltip.style.display = 'block';
-}
-`
-              );
-              icon.attributes.set(
-                "onmouseout",
-                `
-var tooltip = document.getElementById('${tooltip.attributes.get("id")}');
-if (tooltip) {
-  tooltip.style.display = '';
-}
-`
-              );
-            }
-          }
         }
         break;
       }

@@ -7,7 +7,9 @@ import * as HTMLDecoderEncoder from "html-encoder-decoder";
 import * as path from "path";
 
 function encodeHTML(text) {
-  return HTMLDecoderEncoder.encode(text).replace(/\n([^\n]*)/g, '<p>$1</p>');
+  return HTMLDecoderEncoder.encode(text)
+    .replace("&#x2028;", "<br>")
+    .replace(/\n([^\n]*)/g, '<p>$1</p>');
 }
 
 function toCSSColor(color: Figma.Color) {
