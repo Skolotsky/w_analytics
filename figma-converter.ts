@@ -41,16 +41,14 @@ function processMobileSectionGroups(
 ): { offset: number; paddingBottom: number } {
   if (node.box) {
     if (sectionName === "Open Positions") {
-      node.style.set("left", `${node.box.xl}px`);
-      node.style.set("right", `${node.box.xr}px`);
       return { offset, paddingBottom: 0 };
     }
+    node.style.set("padding-left", node.style.get("left") || "");
+    node.style.set("padding-right", node.style.get("right") || "");
     resetPosition(node);
     node.style.delete("width");
     node.style.delete("height");
     node.style.set("position", "relative");
-    node.style.set("padding-left", `${node.box.xl}px`);
-    node.style.set("padding-right", `${node.box.xr}px`);
   }
   let paddingBottom = node.box ? node.box.h : 0;
   if (node.children) {
@@ -103,7 +101,9 @@ function processSection(node: VDOM.Node, breakpoint: string) {
   node.style.set("position", "relative");
   const sectionName = node.attributes.get("data-name") || "";
   if (breakpoint == "Mobile") {
-    node.style.delete("height");
+    if (sectionName !== "Title") {
+      node.style.delete("height");
+    }
     if (node.children) {
       const content = node.children.find(
         child =>
@@ -199,7 +199,7 @@ const replacers = {
     if (isString(node)) {
       return node;
     }
-    if (node.tag === "IMG") {
+    if (node.tag === "IMG" && !node.style.get("display")) {
       node.style.set("display", "block");
     }
     const nodeName = node.attributes.get("data-name");
@@ -255,32 +255,91 @@ const replacers = {
         break;
       }
       case "Show Positions Link": {
-        node.style.set("display", "block");
-        node.tag = "A";
-        node.attributes.set("href", "#");
-        node.attributes.set("onclick", `
+        //node.style.set("display", "block");
+        if (node.children) {
+          const img = node.children.find(
+            child => isNode(child) && child.tag === "IMG"
+          );
+          const text = node.children.find(
+            child => isNode(child) && child.tag === "DIV"
+          );
+          if (isNode(text) && text.children && isNode(img)) {
+            resetPosition(img);
+            img.style.set("display", "inline");
+            img.style.delete("margin-left");
+            img.style.delete("margin-right");
+            img.style.delete("margin-top");
+            img.style.delete("margin-bottom");
+            img.style.set("vertical-align", "bottom");
+            img.style.set("margin-bottom", "4px");
+            text.children.push(img);
+            text.tag = "A";
+            text.attributes.set("href", "#");
+            text.style.set("white-space", "nowrap");
+            text.attributes.set(
+              "onclick",
+              `
 var offset = $('#Cards_${state.breakpoint}').offset();
 offset.top -= 10;
 $('html, body').animate({
     scrollTop: offset.top,
     scrollLeft: offset.left
 });
-`);
-        node.classes.add("show-positions-link");
+`
+            );
+            text.classes.add("show-positions-link");
+            node.children = [text];
+          }
+        }
         break;
       }
       case "Tooltip": {
-        return "";
+        //return "";
+        node.classes.add("tooltip");
+        break;
       }
+      case "About": {
+        node.classes.add("tooltip-container");
+        break;
+      }
+      case "Cities":
       case "YoY": {
-        if (node.attributes.get("data-type") === "GROUP" && node.children) {
+        if (state.breakpoint === "Mobile" && node.children) {
+          node.children.forEach(child => {
+            if (isNode(child)) {
+              child.style.set("left", "50%");
+            }
+          });
+        }
+        if (node.children) {
           const icon = node.children.find(
             child =>
               isNode(child) &&
               child.attributes.get("data-name") === "Icons/Info Inverted/S"
           );
           if (isNode(icon)) {
-            icon.style.set("display", "none");
+            icon.classes.add("tooltip-target");
+          }
+        }
+        break;
+      }
+      case "YoY Tooltip": {
+        if (node.children) {
+          const icon = node.children.find(
+            child =>
+              isNode(child) &&
+              child.attributes.get("data-name") === "Icons/Info Inverted/S"
+          );
+          if (isNode(icon)) {
+            icon.classes.add("tooltip-target");
+            icon.classes.add("tooltip-icon");
+          }
+          const tooltip = node.children.find(
+            child =>
+              isNode(child) && child.attributes.get("data-name") === "Tooltip"
+          );
+          if (isNode(tooltip)) {
+            tooltip.classes.add("tooltip");
           }
         }
         break;
@@ -359,6 +418,7 @@ $('html, body').animate({
           node.style.set("margin-left", `${node.box.xl}px`);
           node.style.set("margin-right", `${node.box.xr}px`);
           node.style.set("padding-top", `${node.box.yt}px`);
+          node.style.set("padding-bottom", `${node.box.yb}px`);
           node.style.delete("left");
           node.style.delete("top");
           node.style.delete("right");

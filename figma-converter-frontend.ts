@@ -201,9 +201,9 @@ function parseAbsoluteBoxBounded(
     vdomNode.style.set("right", `calc(50% - ${offset}px)`);
   }
   if (horizontal === "SCALE") {
-    const lOffset = Math.ceil(xl * 100 / parentW);
-    const rOffset = Math.ceil(xr * 100 / parentW);
-    const wOffset = Math.ceil(w * 100 / parentW);
+    const lOffset = Math.round(xl * 100 / parentW);
+    const rOffset = Math.round(xr * 100 / parentW);
+    const wOffset = 100 - lOffset - rOffset;
     vdomNode.style.set("left", `${lOffset}%`);
     vdomNode.style.set("right", `${rOffset}%`);
     vdomNode.style.set("width", `${wOffset}%`);
@@ -223,9 +223,9 @@ function parseAbsoluteBoxBounded(
     vdomNode.style.set("bottom", `calc(50% - ${offset}px)`);
   }
   if (vertical === "SCALE") {
-    const tOffset = Math.ceil(yt * 100 / parentH);
-    const bOffset = Math.ceil(yb * 100 / parentH);
-    const hOffset = Math.ceil(h * 100 / parentH);
+    const tOffset = Math.round(yt * 100 / parentH);
+    const bOffset = Math.round(yb * 100 / parentH);
+    const hOffset = 100 - tOffset - bOffset;
     vdomNode.style.set("top", `${tOffset}%`);
     vdomNode.style.set("bottom", `${bOffset}%`);
     vdomNode.style.set("height", `${hOffset}%`);

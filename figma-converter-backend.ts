@@ -1,6 +1,13 @@
 import { VDOM } from "./vdom-definitions";
 export type NodePath = { node: VDOM.Node | string; parentPath?: NodePath };
 
+const IGNORED_ATTRIBUTES = [
+  "data-type",
+  "data-name",
+  "data-component-name",
+  "data-component-id"
+];
+
 export type Replacer = (
   node: VDOM.Node | string,
   parentPath: NodePath,
@@ -42,7 +49,7 @@ export function printVDOMNode(
     //let attributes = '';
     let attributes = node.attributes.size
       ? ` ${([...node.attributes.entries()] as [VDOM.AttributeName, string][])
-          .filter(([name]) => name !== "data-name" && name !== "data-type")
+          .filter(([name]) => IGNORED_ATTRIBUTES.indexOf(name) < 0)
           .map(([name, value]) => `${name}="${value}"`)
           .join(" ")}`
       : "";
