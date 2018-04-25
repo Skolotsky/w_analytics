@@ -37,6 +37,7 @@ function isNode(
 function processMobileSectionGroups(
   node: VDOM.Node,
   sectionName: string,
+  state: { css: string; breakpoint: string; lang: string },
   offset: number = 0
 ): { offset: number; paddingBottom: number } {
   if (node.box) {
@@ -59,10 +60,19 @@ function processMobileSectionGroups(
         if (nodeName === "Features") {
           child.attributes.set("data-type", "FRAME");
           child.style.set("position", "relative");
-          child.style.set("top", "-410px");
+          if (state.lang == "ru") {
+            child.style.set("top", "-420px");
+          } else {
+            child.style.set("top", "-320px");
+          }
           child.style.set("white-space", "nowrap");
         } else if (nodeType === "GROUP") {
-          let result = processMobileSectionGroups(child, sectionName, offset);
+          let result = processMobileSectionGroups(
+            child,
+            sectionName,
+            state,
+            offset
+          );
           offset = result.offset;
           paddingBottom = Math.min(paddingBottom, result.paddingBottom);
         } else {
@@ -96,11 +106,14 @@ function processMobileSectionGroups(
   return { offset, paddingBottom };
 }
 
-function processSection(node: VDOM.Node, breakpoint: string) {
+function processSection(
+  node: VDOM.Node,
+  state: { css: string; breakpoint: string; lang: string }
+) {
   resetPosition(node);
   node.style.set("position", "relative");
   const sectionName = node.attributes.get("data-name") || "";
-  if (breakpoint == "Mobile") {
+  if (state.breakpoint == "Mobile") {
     if (sectionName !== "Title") {
       node.style.delete("height");
     }
@@ -112,7 +125,8 @@ function processSection(node: VDOM.Node, breakpoint: string) {
       if (isNode(content)) {
         let { paddingBottom } = processMobileSectionGroups(
           content,
-          sectionName
+          sectionName,
+          state
         );
         node.style.set("padding-bottom", `${paddingBottom}px`);
       }
@@ -120,7 +134,10 @@ function processSection(node: VDOM.Node, breakpoint: string) {
   }
 }
 
-function processBreakpoint(node: VDOM.Node, breakpoint: string) {
+function processBreakpoint(
+  node: VDOM.Node,
+  state: { css: string; breakpoint: string; lang: string }
+) {
   if (node.box) {
     // const width = node.box.w;
     //const className = `figma_bp_${breakpoints.length}`;
@@ -131,7 +148,7 @@ function processBreakpoint(node: VDOM.Node, breakpoint: string) {
   if (node.children) {
     node.children.forEach(child => {
       if (isNode(child)) {
-        processSection(child, breakpoint);
+        processSection(child, state);
       }
     });
   }
@@ -255,7 +272,7 @@ const replacers = {
         break;
       }
       case "Show Positions Link": {
-        //node.style.set("display", "block");
+        ///node.attributes.set('data-type', 'FRAME');
         if (node.children) {
           const img = node.children.find(
             child => isNode(child) && child.tag === "IMG"
@@ -288,6 +305,7 @@ $('html, body').animate({
 `
             );
             text.classes.add("show-positions-link");
+            resetPosition(text);
             node.children = [text];
           }
         }
@@ -307,7 +325,11 @@ $('html, body').animate({
         if (state.breakpoint === "Mobile" && node.children) {
           node.children.forEach(child => {
             if (isNode(child)) {
-              child.style.set("left", "50%");
+              if (child.tag == "IMG") {
+                child.style.set("left", "calc(50% + 77px)");
+              } else {
+                child.style.set("left", "50%");
+              }
             }
           });
         }
@@ -319,6 +341,10 @@ $('html, body').animate({
           );
           if (isNode(icon)) {
             icon.classes.add("tooltip-target");
+            icon.attributes.set(
+              "src",
+              `<%= img_url_prefix %>svg/icon-info.svg`
+            );
           }
         }
         break;
@@ -373,7 +399,9 @@ $('html, body').animate({
             const childName = child.attributes.get("data-name");
             const match = childName && childName.match(BREAKPOINT_REGEXP);
             if (match && match[1] === state.lang) {
-              processBreakpoint(child, match[2]);
+              state.breakpoint = match[2];
+              processBreakpoint(child, state);
+              state.breakpoint = "";
               children.push(child);
             }
           }
