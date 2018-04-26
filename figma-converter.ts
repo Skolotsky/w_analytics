@@ -52,35 +52,42 @@ function processMobileSectionGroups(
     node.style.set("position", "relative");
   }
   let paddingBottom = node.box ? node.box.h : 0;
+  let newOffset = offset;
   if (node.children) {
     node.children.forEach(child => {
       if (isNode(child) && child.box) {
         const nodeType = child.attributes.get("data-type");
         const nodeName = child.attributes.get("data-name");
-        if (nodeName === "Features") {
+        if (nodeName === "YoY Tooltip") {
+          if (child.children) {
+            child.children.forEach(child => {
+              if (isNode(child) && child.box) {
+                child.style.delete("top");
+                child.style.set("bottom", `${child.box.yb - paddingBottom}px`);
+              }
+            });
+          }
+          return;
+        } else if (nodeName === "Features") {
           child.attributes.set("data-type", "FRAME");
           child.style.set("position", "relative");
-          if (state.lang == "ru") {
-            child.style.set("top", "-420px");
-          } else {
-            child.style.set("top", "-320px");
-          }
+          child.style.set("top", `${-newOffset}px`);
           child.style.set("white-space", "nowrap");
         } else if (nodeType === "GROUP") {
           let result = processMobileSectionGroups(
             child,
             sectionName,
             state,
-            offset
+            newOffset
           );
-          offset = result.offset;
+          newOffset = result.offset;
           paddingBottom = Math.min(paddingBottom, result.paddingBottom);
         } else {
           resetPosition(child);
           child.style.set("position", "relative");
           child.style.set("margin-left", `${child.box.xl}px`);
           child.style.set("margin-right", `${child.box.xr}px`);
-          const offsetTop = child.box.yt - offset;
+          const offsetTop = child.box.yt - newOffset;
           if (offsetTop < 0 || nodeType === "RECTANGLE") {
             child.style.set("margin-top", `${offsetTop}px`);
           } else {
@@ -94,7 +101,7 @@ function processMobileSectionGroups(
             }
             child.style.set("height", `${offsetTop + child.box.h}px`);
           }
-          offset = child.box.yt + child.box.h;
+          newOffset = child.box.yt + child.box.h;
           if (child.style.get("display") === "none") {
             child.style.delete("display");
             child.style.set("visibility", "hidden");
@@ -103,7 +110,7 @@ function processMobileSectionGroups(
       }
     });
   }
-  return { offset, paddingBottom };
+  return { offset: newOffset, paddingBottom };
 }
 
 function processSection(
