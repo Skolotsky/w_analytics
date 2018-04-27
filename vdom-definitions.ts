@@ -42,7 +42,11 @@ export namespace VDOM {
     | "vertical-align"
     | "visibility"
     | "width"
-    | "white-space";
+    | "white-space"
+    | "background-image"
+    | "background-size"
+    | "background-position"
+    | "min-width";
   export type Style = Map<VDOM.StylePropertyName, string>;
   export type Classes = Set<ClassName>;
   export type AttributeName = string;

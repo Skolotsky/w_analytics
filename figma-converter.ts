@@ -241,6 +241,20 @@ const replacers = {
           replacer
         );
       }
+      case "Title": {
+        if (node.children) {
+          const cover = node.children.find(
+            child =>
+              isNode(child) && child.attributes.get("data-name") === "Cover Photo"
+          );
+          if (isNode(cover)) {
+            cover.style.set("background-image", "url(<%= img_url_prefix %>/img/careers/cover.jpg)");
+            cover.style.set("background-size", "cover");
+            cover.style.set("background-position", "50%");
+          }
+        }
+        break;
+      }
       case "Gallery": {
         if (node.children) {
           const content = node.children.find(
@@ -302,14 +316,7 @@ const replacers = {
             text.style.set("white-space", "nowrap");
             text.attributes.set(
               "onclick",
-              `
-var offset = $('#Cards_${state.breakpoint}').offset();
-offset.top -= 10;
-$('html, body').animate({
-    scrollTop: offset.top,
-    scrollLeft: offset.left
-});
-`
+              `scrollToCards('${state.breakpoint}');`
             );
             text.classes.add("show-positions-link");
             resetPosition(text);
@@ -350,7 +357,7 @@ $('html, body').animate({
             icon.classes.add("tooltip-target");
             icon.attributes.set(
               "src",
-              `<%= img_url_prefix %>svg/icon-info.svg`
+              `svg/icon-info.svg`
             );
           }
         }
@@ -392,6 +399,7 @@ $('html, body').animate({
       }
       case "Main": {
         node = Object.assign({}, node) as VDOM.Node;
+        //  node.style.set("min-width", "375px");
         if (!node.children) {
           return "";
         }
