@@ -6,13 +6,16 @@ import { VDOM } from "./vdom-definitions";
 import * as HTMLDecoderEncoder from "html-encoder-decoder";
 import * as path from "path";
 
-function encodeHTML(text) {
+const USE_CACHE = process.argv.indexOf("-c") >= 0;
+
+// экранирование текста
+function encodeHTML(text): string {
   return HTMLDecoderEncoder.encode(text)
     .replace("&#x2028;", "<br>")
     .replace(/\n([^\n]*)/g, "<p>$1</p>");
 }
 
-function toCSSColor(color: Figma.Color) {
+function toCSSColor(color: Figma.Color): string {
   const r = Math.ceil(color.r * 256);
   const g = Math.ceil(color.g * 256);
   const b = Math.ceil(color.b * 256);
@@ -20,7 +23,9 @@ function toCSSColor(color: Figma.Color) {
   return `rgba(${r},${g},${b},${a})`;
 }
 
-function toTextAlign(textAlignHorizontal: Figma.TextAlignHorizontal) {
+function toCSSTextAlign(
+  textAlignHorizontal: Figma.TextAlignHorizontal
+): string {
   switch (textAlignHorizontal) {
     case "LEFT":
     case "RIGHT":
@@ -31,7 +36,9 @@ function toTextAlign(textAlignHorizontal: Figma.TextAlignHorizontal) {
   }
 }
 
-function toVerticalAlign(textAlignVertical: Figma.TextAlignVertical) {
+function toCSSVerticalAlign(
+  textAlignVertical: Figma.TextAlignVertical
+): string {
   switch (textAlignVertical) {
     case "TOP":
     case "BOTTOM":
@@ -41,7 +48,7 @@ function toVerticalAlign(textAlignVertical: Figma.TextAlignVertical) {
   }
 }
 
-function toFontFamily(ff: string) {
+function toCSSFontFamily(ff: string): string {
   switch (ff) {
     case "Stratos LC":
       return "Stratos ";
@@ -49,18 +56,22 @@ function toFontFamily(ff: string) {
   return ff;
 }
 
-function toStyle(typeStyle: Figma.TypeStyle, style: VDOM.Style) {
-  style.set("font-family", toFontFamily(typeStyle.fontFamily));
+// получить стиль виртуального DOM
+function toVDOMStyle(typeStyle: Figma.TypeStyle, style: VDOM.Style) {
+  style.set("font-family", toCSSFontFamily(typeStyle.fontFamily));
   if (typeStyle.italic) {
     style.set("font-style", "italic");
   }
   style.set("font-weight", `${typeStyle.fontWeight}`);
   style.set("font-size", `${typeStyle.fontSize}px`);
   if (typeStyle.textAlignHorizontal) {
-    style.set("text-align", toTextAlign(typeStyle.textAlignHorizontal));
+    style.set("text-align", toCSSTextAlign(typeStyle.textAlignHorizontal));
   }
   if (typeStyle.textAlignVertical) {
-    style.set("vertical-align", toVerticalAlign(typeStyle.textAlignVertical));
+    style.set(
+      "vertical-align",
+      toCSSVerticalAlign(typeStyle.textAlignVertical)
+    );
   }
   style.set("letter-spacing", `${typeStyle.letterSpacing}px`);
   style.set("line-height", `${typeStyle.lineHeightPx}px`);
@@ -68,6 +79,7 @@ function toStyle(typeStyle: Figma.TypeStyle, style: VDOM.Style) {
 
 type ImageURLMap = { [key: string]: string };
 
+// распарсить прямоугольник
 function parseRECTANGLE(node: Figma.RECTANGLE, vdomNode: VDOM.Node) {
   if (node.fills.length > 0) {
     const fill = node.fills[0];
@@ -98,8 +110,10 @@ function parseRECTANGLE(node: Figma.RECTANGLE, vdomNode: VDOM.Node) {
   }
 }
 
+// парсинг текста
 function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
   vdomNode.attributes.set("data-name", "text");
+  // если текст не в едином стиле - его придётся разбивать
   if (node.characterStyleOverrides.length) {
     const styleOverrideTable = {
       "0": node.style,
@@ -132,7 +146,7 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
     vdomNode.children = textParts.map(textPart => {
       const vdomNode = VDOM.createNode("SPAN");
       if (textPart.style && textPart.style !== node.style) {
-        toStyle(textPart.style, vdomNode.style);
+        toVDOMStyle(textPart.style, vdomNode.style);
       }
       vdomNode.children = [encodeHTML(textPart.text)];
       return vdomNode;
@@ -140,8 +154,9 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
   } else {
     vdomNode.children = [encodeHTML(node.characters)];
   }
+  // распарсим стиль текста
   if (node.style) {
-    toStyle(node.style, vdomNode.style);
+    toVDOMStyle(node.style, vdomNode.style);
   }
   if (node.fills.length > 0) {
     const fill = node.fills[0];
@@ -154,6 +169,7 @@ function parseTEXT(node: Figma.TEXT, vdomNode: VDOM.Node) {
   }
 }
 
+// парсинг позиционирования
 function parseAbsoluteBoxBounded(
   node: Figma.AbsoluteBoxBounded,
   vdomNode: VDOM.Node,
@@ -165,6 +181,8 @@ function parseAbsoluteBoxBounded(
   let parentW = Infinity;
   let parentH = Infinity;
   if (parentBox) {
+    // группа - логическая еденица и часто figma неправильно отдаёт инфу о её позиционировании
+    // поэтому мы приравниваем группу к внешнему контейнеру для правильности вычислений
     if (Figma.isGROUP(node)) {
       vdomNode.style.set("left", "0");
       vdomNode.style.set("right", "0");
@@ -176,6 +194,7 @@ function parseAbsoluteBoxBounded(
     parentW = parentBox.width;
     parentH = parentBox.height;
   }
+  // вычисления относительных позиций
   const w = node.absoluteBoundingBox.width;
   const h = node.absoluteBoundingBox.height;
   const xl = node.absoluteBoundingBox.x - parentX;
@@ -186,9 +205,11 @@ function parseAbsoluteBoxBounded(
   const vertical = node.constraints.vertical;
 
   vdomNode.box = { xl, xr, yt, yb, w, h };
+  // приравниваем группу к внешнему контейнеру для правильности вычислений
   if (Figma.isGROUP(node)) {
     return parentBox || null;
   }
+  // установка позиций в зависимости от привязки
   if (horizontal === "LEFT" || horizontal === "LEFT_RIGHT") {
     vdomNode.style.set("left", `${xl}px`);
   }
@@ -236,6 +257,7 @@ function parseAbsoluteBoxBounded(
   return node.absoluteBoundingBox;
 }
 
+// Парсинг эффектов, пока только тени
 function parseEffected(node: Figma.Effected, vdomNode: VDOM.Node) {
   const visibleEffects = node.effects.filter(effect => effect.visible);
   const shadows = visibleEffects
@@ -294,6 +316,7 @@ function parseChildren(
   return vdomChildren;
 }
 
+// Парсинг узла файла figma
 function parseNode(
   imageURLMap: ImageURLMap,
   components: Figma.ComponentRefMap,
@@ -305,30 +328,30 @@ function parseNode(
   vdomNode.attributes.set("id", "id" + node.id.replace(":", "-"));
   vdomNode.attributes.set("data-name", node.name);
   vdomNode.attributes.set("data-type", node.type);
-  if (Figma.isBOOLEAN_OPERATION(node)) {
+  // векторную графику не рисуем
+  if (
+    Figma.isBOOLEAN_OPERATION(node) ||
+    Figma.isSTAR(node) ||
+    Figma.isLINE(node) ||
+    Figma.isELLIPSE(node) ||
+    Figma.isREGULAR_POLYGON(node)
+  ) {
     return null;
   }
-  if (Figma.isSTAR(node)) {
-    return null;
-  }
-  if (Figma.isLINE(node)) {
-    return null;
-  }
-  if (Figma.isELLIPSE(node)) {
-    return null;
-  }
-  if (Figma.isREGULAR_POLYGON(node)) {
-    return null;
-  }
+  // парсим прямоугольник
   if (Figma.isRECTANGLE(node)) {
     parseRECTANGLE(node, vdomNode);
   }
+  // парсим текст
   if (Figma.isTEXT(node)) {
     parseTEXT(node, vdomNode);
   }
+  // находим связи с комопонентами
   if (Figma.isCOMPONENT(node)) {
     vdomNode.attributes.set("data-component", node.id);
   }
+  // получаем библиотечную картинку, если есть
+  // на самом деле пока отказались от использования библиотечных картинок
   let libImage = imageURLMap[node.id] || "";
   if (Figma.isINSTANCE(node)) {
     vdomNode.attributes.set("data-component-id", node.componentId);
@@ -344,24 +367,31 @@ function parseNode(
     }
   }
 
+  // установка позиционирования
   vdomNode.style.set("position", "absolute");
   let nodeBox;
   if (Figma.isAbsoluteBoxBounded(node)) {
     nodeBox = parseAbsoluteBoxBounded(node, vdomNode, parentBox);
   }
+  // установка цвета
   if (Figma.isBackgroundColored(node)) {
     vdomNode.style.set("background-color", toCSSColor(node.backgroundColor));
   }
+  // установка эффектов (например тень)
   if (Figma.isEffected(node)) {
     parseEffected(node, vdomNode);
   }
+  // установка видимости
   if (node.visible === false) {
     vdomNode.style.set("display", "none");
   }
+
+  // если библиотечная картинка  то будем рисовать её, а не парсить
   if (libImage) {
     vdomNode.tag = "IMG";
     vdomNode.attributes.set("src", libImage);
   } else if (Figma.isSubTree(node)) {
+    // обход дочерних элементов
     vdomNode.children = parseChildren(
       node.children,
       imageURLMap,
@@ -373,32 +403,36 @@ function parseNode(
   return vdomNode;
 }
 
+// Получение файла figma
 export function getFile(fileId: string, token: string): Promise<Figma.File> {
   const figmaClient = FigmaEndpoint.Client({
     personalAccessToken: token
   });
   return new Promise(resolve => {
     const filePath = `data/${fileId}.json`;
-    if (process.argv.indexOf("-c") > 0 && fs.existsSync(filePath)) {
+    // Если используется кеш, то просто прочитаем существуюший файл
+    if (USE_CACHE && fs.existsSync(filePath)) {
       const data = fs.readFileSync(filePath).toString();
       const fileNode: Figma.File = JSON.parse(data);
       resolve(fileNode);
+    } else {
+      // Качаем и сохраняем файл
+      figmaClient.file(fileId).then(response => {
+        const data = JSON.stringify(response.data, undefined, "  ");
+        if (!fs.existsSync("data/")) {
+          fs.mkdirSync("data/");
+        }
+        fs.writeFileSync(filePath, data);
+        const fileNode: Figma.File = JSON.parse(data);
+        resolve(fileNode);
+      });
     }
-    figmaClient.file(fileId).then(response => {
-      const data = JSON.stringify(response.data, undefined, "  ");
-      if (!fs.existsSync("data/")) {
-        fs.mkdirSync("data/");
-      }
-      fs.writeFileSync(filePath, data);
-      const fileNode: Figma.File = JSON.parse(data);
-      resolve(fileNode);
-    });
   });
 }
 
-function download(uri, filename) {
+function download(uri, filename): Promise<string> {
   return new Promise(resolve => {
-    request.head(uri, function(err, res) {
+    request.head(uri, function() {
       request(uri)
         .pipe(fs.createWriteStream(filename))
         .on("close", () => resolve(filename));
@@ -408,6 +442,7 @@ function download(uri, filename) {
 
 type ImageRecords = { [key: string]: string };
 
+// получение идентефикаторов изображений из дерева файла Figma
 function getImageIds(
   imageIds: { jpg: ImageRecords; png: ImageRecords; svg: ImageRecords },
   node: Figma.Node
@@ -417,10 +452,12 @@ function getImageIds(
       getImageIds(imageIds, child);
     });
   } else if (Figma.isIcon(node)) {
+    // записываем идентификатор, если картинка, в соответствии с правилами экспорта
     imageIds[node.exportSettings[0].format.toLowerCase()][node.id] = node.name;
   }
 }
 
+// Получить изображения из файла
 export function getImagesByFile(
   fileId: string,
   token: string,
@@ -432,9 +469,11 @@ export function getImagesByFile(
   });
   return new Promise(resolve => {
     const imageIds = { jpg: {}, png: {}, svg: {} };
+    // собрать идентификаторы изображений
     getImageIds(imageIds, file.document);
     let count = 1;
     let imageURLMap = {};
+    // при окончании получения url для каждой группы файлов - слить с результатом и если больше групп нет - завершить
     function tryEnd(
       newImageURLMap?: ImageURLMap,
       format?: string,
@@ -455,7 +494,8 @@ export function getImagesByFile(
         resolve(imageURLMap);
       }
     }
-    if (process.argv.indexOf("-c") > 0) {
+    // если используем кеш - не загружаем url из фигмы
+    if (USE_CACHE) {
       Object.keys(imageIds.svg).forEach(id => (imageURLMap[id] = ""));
     } else {
       if (Object.keys(imageIds.jpg).length) {
@@ -481,15 +521,18 @@ export function getImagesByFile(
   });
 }
 
+// загрузка изображений
 const IMAGES_PATH = "img";
-let index = process.argv.indexOf("-p");
-const DOWNLOAD_PATH = index > 0 ? path.resolve(process.argv[index + 1]) : "";
+let PATH_ARG_INDEX = process.argv.indexOf("-p");
+const DOWNLOAD_PATH =
+  PATH_ARG_INDEX > 0 ? path.resolve(process.argv[PATH_ARG_INDEX + 1]) : "";
 export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
   if (!fs.existsSync(IMAGES_PATH)) {
     fs.mkdirSync(IMAGES_PATH);
   }
   const imgDir = `${DOWNLOAD_PATH}/${IMAGES_PATH}/${fileId}`;
-  if (process.argv.indexOf("-c") < 0) {
+  // если не используем ранее загруженные данные в качестве кеша - то удалим их
+  if (!USE_CACHE) {
     if (fs.existsSync(imgDir)) {
       fs
         .readdirSync(imgDir)
@@ -498,6 +541,7 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
     }
     fs.mkdirSync(imgDir);
   }
+  // Загружаем изображения, для которых есть url
   Object.keys(imageURLMap).forEach(key => {
     const name = key.replace(/:/g, "-").replace(/;/g, "_");
     const fileName = `${name}.svg`;
@@ -510,23 +554,28 @@ export function downloadImages(fileId: string, imageURLMap: ImageURLMap) {
   });
 }
 
+// Получить виртуальный DOM по fileId файла в figma
 export function getVDOMByFileId(
   fileId: string,
   token: string
 ): Promise<VDOM.Document> {
   return new Promise(resolve => {
+    // получение файла
     getFile(fileId, token).then(file =>
+      // получение картинок из файла
       getImagesByFile(fileId, token, file).then(imageURLMap => {
+        // загрузка картинок
         downloadImages(fileId, imageURLMap);
-        console.log(JSON.stringify(imageURLMap, undefined, " "));
         const nodeMap: VDOM.NodeMap = new Map();
         resolve({
+          // узел - результат парсинга
           node: parseNode(
             imageURLMap,
             file.components,
             file.document,
             nodeMap
           ) as VDOM.Node,
+          // ассоциативный список узлов по id
           nodeMap
         });
       })

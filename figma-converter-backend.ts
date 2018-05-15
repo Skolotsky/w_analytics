@@ -1,6 +1,7 @@
 import { VDOM } from "./vdom-definitions";
 export type NodePath = { node: VDOM.Node | string; parentPath?: NodePath };
 
+// Атрибуты которые не нужно выводить в HTML
 const IGNORED_ATTRIBUTES = [
   "data-type",
   "data-name",
@@ -8,17 +9,21 @@ const IGNORED_ATTRIBUTES = [
   "data-component-id"
 ];
 
+// Тип функции, которая заменяет узлы
 export type Replacer = (
   node: VDOM.Node | string,
   parentPath: NodePath,
   replacer: Replacer
 ) => VDOM.Node | string;
+
+// Вывод узла виртуального DOM в HTML
 export function printVDOMNode(
   node: VDOM.Node | string,
   replacer?: Replacer,
   path?: NodePath
 ): string {
   const newPath: NodePath = { node: node, parentPath: path };
+  // прогоняем через функцию, заменяющую узлы
   if (replacer) {
     const result = replacer(node, newPath, replacer);
     if (typeof result === "string") {
@@ -29,6 +34,7 @@ export function printVDOMNode(
   if (typeof node === "string") {
     return "";
   }
+  // выводим дочерние элементы
   let childrenHTML = node.children
     ? node.children
         .map(child => printVDOMNode(child, replacer, newPath))
@@ -46,7 +52,6 @@ export function printVDOMNode(
     let classes = node.classes.size
       ? ` class="${[...node.classes.keys()].join(" ")}"`
       : "";
-    //let attributes = '';
     let attributes = node.attributes.size
       ? ` ${([...node.attributes.entries()] as [VDOM.AttributeName, string][])
           .filter(([name]) => IGNORED_ATTRIBUTES.indexOf(name) < 0)
@@ -60,6 +65,7 @@ export function printVDOMNode(
   return `${childrenHTML}`;
 }
 
+// Вывод виртуального DOM в HTML
 export function printVDOM(
   document: VDOM.Document,
   replacer?: (node: VDOM.Node, parentPath: NodePath) => VDOM.Node | string

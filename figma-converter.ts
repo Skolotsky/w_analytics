@@ -9,6 +9,7 @@ import {
 import { VDOM } from "./vdom-definitions";
 import * as path from "path";
 
+// cброс позиции
 function resetPosition(node: VDOM.Node) {
   node.style.delete("position");
   node.style.delete("left");
@@ -17,6 +18,7 @@ function resetPosition(node: VDOM.Node) {
   node.style.delete("bottom");
 }
 
+// заполнить страницу элементом
 function fillPage(node: VDOM.Node) {
   resetPosition(node);
   node.style.delete("width");
@@ -24,16 +26,19 @@ function fillPage(node: VDOM.Node) {
   node.style.delete("height");
 }
 
+// строка ли?
 function isString(node: any): node is string {
   return typeof node == "string";
 }
 
+// узел ли?
 function isNode(
   node: string | VDOM.Node | null | undefined
 ): node is VDOM.Node {
   return !!node && !isString(node);
 }
 
+// Для мобильной секции нужно выставлять кастомную растягиваюшуюся по высоте размерность
 function processMobileSectionGroups(
   node: VDOM.Node,
   sectionName: string,
@@ -113,6 +118,7 @@ function processMobileSectionGroups(
   return { offset: newOffset, paddingBottom };
 }
 
+// обработка секции страницы
 function processSection(
   node: VDOM.Node,
   state: { css: string; breakpoint: string; lang: string }
@@ -141,16 +147,11 @@ function processSection(
   }
 }
 
+// обработка брекпоинта размера страницы
 function processBreakpoint(
   node: VDOM.Node,
   state: { css: string; breakpoint: string; lang: string }
 ) {
-  if (node.box) {
-    // const width = node.box.w;
-    //const className = `figma_bp_${breakpoints.length}`;
-    //breakpoints.push({ width, className });
-    //node.classes.add(className);
-  }
   fillPage(node);
   if (node.children) {
     node.children.forEach(child => {
@@ -165,6 +166,7 @@ const CARD_MARGIN = 36;
 
 const BREAKPOINT_REGEXP = /(en|ru) \((Desktop|Tablet|Mobile)\)/;
 const replacers = {
+  // реплейсер для карточек вакансий
   cards: (
     state: { css: string; breakpoint: string; lang: string },
     node: VDOM.Node | string,
@@ -214,6 +216,7 @@ const replacers = {
     }
     return replacers.careers(state, node, path, replacer);
   },
+  // реплейсер для страницы вакансий
   careers: (
     state: { css: string; breakpoint: string; lang: string },
     node: VDOM.Node | string,
@@ -245,10 +248,14 @@ const replacers = {
         if (node.children) {
           const cover = node.children.find(
             child =>
-              isNode(child) && child.attributes.get("data-name") === "Cover Photo"
+              isNode(child) &&
+              child.attributes.get("data-name") === "Cover Photo"
           );
           if (isNode(cover)) {
-            cover.style.set("background-image", "url(<%= img_url_prefix %>/img/careers/cover.jpg)");
+            cover.style.set(
+              "background-image",
+              "url(<%= img_url_prefix %>/img/careers/cover.jpg)"
+            );
             cover.style.set("background-size", "cover");
             cover.style.set("background-position", "50%");
           }
@@ -262,7 +269,6 @@ const replacers = {
               isNode(child) && child.attributes.get("data-name") === "Content"
           );
           if (isNode(content) && content.children) {
-            const id = content.attributes.get("id");
             resetPosition(content);
 
             if (content.box) {
@@ -355,10 +361,7 @@ const replacers = {
           );
           if (isNode(icon)) {
             icon.classes.add("tooltip-target");
-            icon.attributes.set(
-              "src",
-              `svg/icon-info.svg`
-            );
+            icon.attributes.set("src", `svg/icon-info.svg`);
           }
         }
         break;
@@ -543,6 +546,7 @@ function initState(lang: string) {
   };
 }
 
+// печать шаблона
 function printTemplate(vdomNode: VDOM.Document, outDir: string, lang: string) {
   const state = initState(lang);
   let html = printVDOM(vdomNode, replacers.careers.bind(replacers, state));
@@ -554,6 +558,7 @@ function printTemplate(vdomNode: VDOM.Document, outDir: string, lang: string) {
   );
 }
 
+// печать шаблона по идентификатору файла в figma
 export function printVDOMbyFieldId(
   fileId: string,
   token: string,
