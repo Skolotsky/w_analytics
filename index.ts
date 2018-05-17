@@ -26,12 +26,12 @@ function isCallExpressionIsExtending(callExpression: TS.CallExpression) {
 function getIdentifierModuleName(
   program: TS.Program,
   identifier: TS.Identifier
-) {
+): string {
   const checker = program.getTypeChecker();
   const symbol = checker.getSymbolAtLocation(identifier);
-  if (symbol.declarations && symbol.declarations[0]) {
+  if (symbol && symbol.declarations && symbol.declarations[0]) {
     let declaration: TS.Node = symbol.declarations[0];
-    let names = [];
+    let names: string[] = [];
     if (TS.isBindingElement(declaration)) {
       let node:
         | TS.VariableDeclaration
@@ -43,24 +43,30 @@ function getIdentifierModuleName(
         } else if (TS.isIdentifier(node.name)) {
           names.push(node.name.text);
         }
-        if (TS.isObjectBindingPattern(node.parent)) {
+        if (node.parent && TS.isObjectBindingPattern(node.parent)) {
+          if (!node.parent.parent) {
+            return '';
+          }
           node = node.parent.parent;
         }
       }
       declaration = node;
     }
-    if (TS.isVariableDeclaration(declaration)) {
+    if (TS.isVariableDeclaration(declaration) && declaration.initializer) {
       return getFullNameByExpression(
         program,
         declaration.initializer,
         names.join(MEMBER_DELIMETER)
-      );
+      ) || '';
     }
     if (TS.isImportSpecifier(declaration)) {
+      if (!declaration.parent || !declaration.parent.parent) {
+        return '';
+      }
       declaration = declaration.parent.parent;
     }
     if (TS.isImportClause(declaration)) {
-      if (TS.isImportDeclaration(declaration.parent)) {
+      if (declaration.parent && TS.isImportDeclaration(declaration.parent)) {
         const moduleSpecifier = declaration.parent.moduleSpecifier;
         if (TS.isLiteralExpression(moduleSpecifier)) {
           return moduleSpecifier.text;
@@ -75,8 +81,8 @@ function getFullNameByExpression(
   program: TS.Program,
   expression: TS.Expression,
   name?: string
-) {
-  let fullName = "";
+): string | undefined {
+  let fullName;
   if (TS.isIdentifier(expression)) {
     const identifier = expression;
     const moduleName = getIdentifierModuleName(program, identifier);
@@ -145,7 +151,9 @@ function addClassDefinition(
       modelNamesToFullClassNames.set(modelName, []);
     }
     const fullNames = modelNamesToFullClassNames.get(modelName);
-    fullNames.push(classFullName);
+    if (fullNames) {
+      fullNames.push(classFullName);
+    }
   }
 }
 
@@ -184,11 +192,11 @@ function parseModelNode(
         const baseClassFullName = getBaseClassFullNameFromCallExpression(
           program,
           callExpression
-        );
+        ) || '';
         const classFullName = getModuleName(sourceFile.fileName);
-        const mixins = [];
-        const attributes = [];
-        const relationships = [];
+        const mixins: string[] = [];
+        const attributes: [string, string][] = [];
+        const relationships: [string, IRelationship][] = [];
         callExpression.arguments.forEach(argument => {
           if (TS.isObjectLiteralExpression(argument)) {
             argument.properties.forEach(property => {
@@ -244,8 +252,10 @@ function parseModelNode(
               }
             });
           } else if (TS.isIdentifier(argument)) {
-            const moxinFullName = getFullNameByExpression(program, argument);
-            mixins.push(moxinFullName);
+            const mixinFullName = getFullNameByExpression(program, argument);
+            if (mixinFullName) {
+              mixins.push(mixinFullName);
+            }
           }
         });
         addClassDefinition(
@@ -329,7 +339,7 @@ function generateImage() {
 function print() {
   console.log("Writing classes.puml");
   const classesToPrint = new Set<string>();
-  const relationsStrings = [];
+  const relationsStrings: string[] = [];
   classDefinitionMap.forEach((classDefinition, classFullName) => {
     if (process.argv.indexOf("-a") > 0) {
       classesToPrint.add(classFullName);
@@ -400,7 +410,7 @@ function print() {
       if (classDefinitionMap.has(classFullName)) {
         const classDefinition = classDefinitionMap.get(classFullName);
 
-        strings.push(getClassDefinitionString(classDefinition));
+        strings.push(getClassDefinitionString(classDefinition as IClassDefinition));
       }
     }
   });
@@ -419,17 +429,17 @@ function output() {
     const model1 = classDefinitionMap.get(modelName1);
     const model2 = classDefinitionMap.get(modelName2);
     if (!model1) {
-      console.log(modelName1 + ' not exist');
+      console.log(modelName1 + " not exist");
     }
     if (!model2) {
-      console.log(modelName2 + ' not exist');
+      console.log(modelName2 + " not exist");
     }
     if (model1 && model2) {
       const attrs1 = getClassDefinitionAttributes(model1).toLowerCase();
       const attrs2 = getClassDefinitionAttributes(model2).toLowerCase();
-      const added = ['+'];
-      const removed = ['-'];
-      Diff.diffLines(attrs1, attrs2).forEach((diff) => {
+      const added = ["+"];
+      const removed = ["-"];
+      Diff.diffLines(attrs1, attrs2).forEach(diff => {
         if (diff.added) {
           added.push(diff.value.trim());
         }
@@ -438,8 +448,18 @@ function output() {
         }
       });
       console.log("Writing diff.txt");
-      const content = [modelName1, attrs1, '', modelName2, attrs2, '', added.join('\n'), '', removed.join('\n')];
-      FS.writeFileSync("diff.txt", content.join('\n'));
+      const content = [
+        modelName1,
+        attrs1,
+        "",
+        modelName2,
+        attrs2,
+        "",
+        added.join("\n"),
+        "",
+        removed.join("\n")
+      ];
+      FS.writeFileSync("diff.txt", content.join("\n"));
     }
   } else {
     print();
@@ -447,7 +467,7 @@ function output() {
   }
 }
 
-function main(dirname: string) {
+function analyse(dirname: string) {
   console.log("Parsing sources");
   const paths = [
     Path.resolve(dirname, "./projects/boilerplate/addon/models"),
@@ -478,9 +498,7 @@ function main(dirname: string) {
   });
 }
 
-if (FS.existsSync(Path.resolve(__dirname, "./projects/"))) {
-  main(__dirname);
-} else {
+function fetchGit(): Promise<void> {
   const fetchOpts: Git.FetchOptions = {
     callbacks: {
       certificateCheck: function() {
@@ -496,49 +514,68 @@ if (FS.existsSync(Path.resolve(__dirname, "./projects/"))) {
   };
 
   console.log("Clonning git@github.com:wheely/boilerplate.git");
-  Git.Clone.clone(
+  return Git.Clone.clone(
     "git@github.com:wheely/boilerplate.git",
     "./projects/boilerplate/",
     { fetchOpts }
   )
-    .then(() => {
-      console.log("Clonning git@github.com:wheely/partners_wheely_com.git");
-      Git.Clone.clone(
-        "git@github.com:wheely/partners_wheely_com.git",
-        "./projects/partners_wheely_com",
-        { fetchOpts }
-      )
-        .then(() => {
-          console.log("git@github.com:wheely/dashboard.git");
-          Git.Clone.clone(
-            "git@github.com:wheely/dashboard.git",
-            "./projects/dashboard/",
-            { fetchOpts }
-          )
-            .then(() => {
-              console.log("git@github.com:wheely/business_wheely_com.git");
-              Git.Clone.clone(
-                "git@github.com:wheely/business_wheely_com.git",
-                "./projects/business_renovation/",
-                { fetchOpts, checkoutBranch: "epic/renovation" }
-              )
-                .then(() => {
-                  console.log("Clonning complete");
-                  main(__dirname);
-                })
-                .catch(err => {
-                  console.log(err);
-                });
-            })
-            .catch(err => {
-              console.log(err);
-            });
-        })
-        .catch(err => {
-          console.log(err);
-        });
-    })
-    .catch(err => {
-      console.log(err);
-    });
+    .then(
+      () => {
+        console.log("Clonning git@github.com:wheely/partners_wheely_com.git");
+        return Git.Clone.clone(
+          "git@github.com:wheely/partners_wheely_com.git",
+          "./projects/partners_wheely_com",
+          { fetchOpts }
+        );
+      },
+      err => {
+        console.log(err);
+      }
+    )
+    .then(
+      () => {
+        console.log("git@github.com:wheely/dashboard.git");
+        return Git.Clone.clone(
+          "git@github.com:wheely/dashboard.git",
+          "./projects/dashboard/",
+          { fetchOpts }
+        );
+      },
+      err => {
+        console.log(err);
+      }
+    )
+    .then(
+      () => {
+        console.log("git@github.com:wheely/business_wheely_com.git");
+        return Git.Clone.clone(
+          "git@github.com:wheely/business_wheely_com.git",
+          "./projects/business_renovation/",
+          { fetchOpts, checkoutBranch: "epic/renovation" }
+        );
+      },
+      err => {
+        console.log(err);
+      }
+    )
+    .then(
+      () => {
+        console.log("Clonning complete");
+      },
+      err => {
+        console.log(err);
+      }
+    );
 }
+
+function main() {
+  if (FS.existsSync(Path.resolve(__dirname, "./projects/"))) {
+    analyse(__dirname);
+  } else {
+    fetchGit().then(() => {
+      analyse(__dirname);
+    });
+  }
+}
+
+main();
