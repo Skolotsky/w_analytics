@@ -8,7 +8,7 @@
 
 Для запуска:
 
-```ts-node figma-converter.ts -f ${Figma file id} -o ${Path to output} -p ${Public dir} -t {Figma token} [-c]```
+```ts-node figma-converter.ts -f ${Figma file id} -n ${template name} -o ${Path to output} -p ${Public dir} -t {Figma token} [-c]```
 
 -c - использовать значения из кеша(ранее загруженные файлы)
 

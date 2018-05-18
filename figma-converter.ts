@@ -547,13 +547,13 @@ function initState(lang: string) {
 }
 
 // печать шаблона
-function printTemplate(vdomNode: VDOM.Document, outDir: string, lang: string) {
+function printTemplate(vdomNode: VDOM.Document, templateName: string, outDir: string, lang: string) {
   const state = initState(lang);
-  let html = printVDOM(vdomNode, replacers.careers.bind(replacers, state));
+  let html = printVDOM(vdomNode, replacers[templateName].bind(replacers, state));
   html = `<style>${state.css}</style>` + html;
-  fs.writeFileSync(`${outDir}/careers/content_${lang}.erb`, html);
+  fs.writeFileSync(`${outDir}/${templateName}/content_${lang}.erb`, html);
   fs.writeFileSync(
-    `careers_${lang}.html`,
+    `${templateName}_${lang}.html`,
     html.replace(/<%= img_url_prefix %>\//g, "")
   );
 }
@@ -561,12 +561,13 @@ function printTemplate(vdomNode: VDOM.Document, outDir: string, lang: string) {
 // печать шаблона по идентификатору файла в figma
 export function printVDOMbyFieldId(
   fileId: string,
+  templateName: string,
   token: string,
   outDir: string
 ) {
   getVDOMByFileId(fileId, token).then(vdomNode => {
-    printTemplate(vdomNode, outDir, "en");
-    printTemplate(vdomNode, outDir, "ru");
+    printTemplate(vdomNode, templateName, outDir, "en");
+    printTemplate(vdomNode, templateName, outDir, "ru");
   });
 }
 
@@ -578,10 +579,16 @@ function main() {
     console.log("need figma file id");
     return;
   }
+  index = argv.indexOf("-n");
+  const templateName = index > 0 ? path.resolve(argv[index + 1]) : "";
+  if (!templateName) {
+    console.log("need template name");
+    return;
+  }
   index = argv.indexOf("-o");
-  const outFileName = index > 0 ? path.resolve(argv[index + 1]) : "";
-  if (!outFileName) {
-    console.log("need output file name");
+  const outDirName = index > 0 ? path.resolve(argv[index + 1]) : "";
+  if (!outDirName) {
+    console.log("need output dir name");
     return;
   }
   index = argv.indexOf("-t");
@@ -590,7 +597,7 @@ function main() {
     console.log("need token");
     return;
   }
-  printVDOMbyFieldId(fileId, token, outFileName);
+  printVDOMbyFieldId(fileId, templateName, token, outDirName);
 }
 
 main();
